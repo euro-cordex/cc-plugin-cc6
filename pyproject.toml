@@ -11,7 +11,12 @@ keywords = ["compliance checker", "plugin", "cordex", "cordex-cmip6"]
 readme.content-type = "text/markdown"
 readme.file = "README.md"
 license = { text = "Apache-2.0" }
+authors = [
+  { name = "Lars Buntemeyer", email = "lars.buntemeyer@hereon.de" },
+  { name = "Martin Schupfner", email = "schupfner@dkrz.de" },
+]
 maintainers = [
+  { name = "Lars Buntemeyer", email = "lars.buntemeyer@hereon.de" },
   { name = "Martin Schupfner", email = "schupfner@dkrz.de" },
 ]
 requires-python = ">=3.8"
