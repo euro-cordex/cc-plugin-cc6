@@ -1,25 +1,23 @@
 [build-system]
 requires = [
-    "setuptools>=42",
-    "wheel",
-    "setuptools_scm[toml]>=3.4",
-    "setuptools_scm_git_archive",
+  "setuptools>=42",
+  "wheel",
+  "setuptools_scm[toml]>=3.4",
+  "setuptools_scm_git_archive"
 ]
 
 [project]
 name = "cc-plugin-cc6"
 description = "Compliance Checker CORDEX-CMIP6 plugin"
 keywords = ["compliance checker", "plugin", "cordex", "cordex-cmip6"]
-readme.content-type = "text/markdown"
-readme.file = "README.md"
-license = { text = "Apache-2.0" }
+license = {text = "Apache-2.0"}
 authors = [
-  { name = "Lars Buntemeyer", email = "lars.buntemeyer@hereon.de" },
-  { name = "Martin Schupfner", email = "schupfner@dkrz.de" },
+  {name = "Lars Buntemeyer", email = "lars.buntemeyer@hereon.de"},
+  {name = "Martin Schupfner", email = "schupfner@dkrz.de"}
 ]
 maintainers = [
-  { name = "Lars Buntemeyer", email = "lars.buntemeyer@hereon.de" },
-  { name = "Martin Schupfner", email = "schupfner@dkrz.de" },
+  {name = "Lars Buntemeyer", email = "lars.buntemeyer@hereon.de"},
+  {name = "Martin Schupfner", email = "schupfner@dkrz.de"}
 ]
 requires-python = ">=3.8"
 classifiers = [
@@ -28,7 +26,7 @@ classifiers = [
   "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
-  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.12"
 ]
 dependencies = [
   "cftime",
@@ -39,11 +37,11 @@ dependencies = [
   "xarray"
 ]
 dynamic = [
-  "version",
+  "version"
 ]
-urls.documentation = "http://ioos.github.io/compliance-checker/"
-urls.homepage = "https://github.com/sol1105/cc-plugin-cc6"
-urls.repository = "https://github.com/sol1105/cc-plugin-cc6"
+
+[project.entry-points."compliance_checker.suites"]
+cc6 = "cc_plugin_cc6.base:CORDEXCMIP6"
 
 [project.optional-dependencies]
 dev = [
@@ -58,11 +56,13 @@ dev = [
   "pre-commit",
   "pytest>=7.0.0",
   "pytest-flake8",
-  "ruff>=0.1.0",
+  "ruff>=0.1.0"
 ]
-
-[project.entry-points."compliance_checker.suites"]
-cc6 = "cc_plugin_cc6.base:CORDEXCMIP6"
+readme.content-type = "text/markdown"
+readme.file = "README.md"
+urls.documentation = "http://ioos.github.io/compliance-checker/"
+urls.homepage = "https://github.com/sol1105/cc-plugin-cc6"
+urls.repository = "https://github.com/sol1105/cc-plugin-cc6"
 
 [tool.black]
 target-version = [
@@ -72,48 +72,6 @@ target-version = [
   "py311",
   "py312"
 ]
-
-[tool.flit.sdist]
-include = [
-  "LICENSE",
-  "README.md",
-  "tests/*.py"
-]
-exclude = [
-  "**/*.py[co]",
-  "**/__pycache__",
-  ".*",
-]
-
-[tool.setuptools_scm]
-fallback_version = "999"
-write_to = "cc_plugin_cc6/_version.py"
-
-[tool.isort]
-profile = "black"
-py_version = 38
-
-[tool.ruff]
-src = ["cc_plugin_cc6"]
-line-length = 88
-target-version = "py310"
-ignore = ["E501"]
-lint.select = [
-  "A",   # flake8-builtins
-  "B",   # flake8-bugbear
-  "C4",  # flake8-comprehensions
-  "F",   # flakes
-  "I",   # import sorting
-  "T20", # flake8-print
-  "UP",  # upgrade
-]
-
-[tool.ruff.format]
-line-ending = "auto"
-
-[tool.ruff.isort]
-known-first-party = ["cc_plugin_cc6"]
-lines-after-imports = 1
 
 [tool.check-manifest]
 ignore = [
@@ -125,12 +83,45 @@ ignore = [
   "notebooks",
   "notebooks/*",
   "tests",
-  "tests/*",
+  "tests/*"
 ]
+
+[tool.flit.sdist]
+include = [
+  "LICENSE",
+  "README.md",
+  "tests/*.py"
+]
+exclude = [
+  "**/*.py[co]",
+  "**/__pycache__",
+  ".*"
+]
+
+[tool.isort]
+profile = "black"
+py_version = 38
 
 [tool.pytest.ini_options]
 filterwarnings = [
   "error:::cc-plugin-cc6.*",
   "ignore::UserWarning",
-  "ignore::RuntimeWarning",
+  "ignore::RuntimeWarning"
 ]
+
+[tool.ruff]
+src = ["cc_plugin_cc6"]
+line-length = 88
+target-version = "py310"
+ignore = ["E501"]
+
+[tool.ruff.format]
+line-ending = "auto"
+
+[tool.ruff.isort]
+known-first-party = ["cc_plugin_cc6"]
+lines-after-imports = 1
+
+[tool.setuptools_scm]
+fallback_version = "999"
+write_to = "cc_plugin_cc6/_version.py"
