@@ -9,6 +9,7 @@ requires = [
 [project]
 name = "cc-plugin-cc6"
 description = "Compliance Checker CORDEX-CMIP6 plugin"
+readme = "README.md"
 keywords = ["compliance checker", "plugin", "cordex", "cordex-cmip6"]
 license = {text = "Apache-2.0"}
 authors = [
@@ -58,11 +59,11 @@ dev = [
   "pytest-flake8",
   "ruff>=0.1.0"
 ]
-readme.content-type = "text/markdown"
-readme.file = "README.md"
-urls.documentation = "http://ioos.github.io/compliance-checker/"
-urls.homepage = "https://github.com/sol1105/cc-plugin-cc6"
-urls.repository = "https://github.com/sol1105/cc-plugin-cc6"
+
+[project.urls]
+documentation = "http://ioos.github.io/compliance-checker"
+homepage = "https://github.com/sol1105/cc-plugin-cc6"
+repository = "https://github.com/sol1105/cc-plugin-cc6"
 
 [tool.black]
 target-version = [
