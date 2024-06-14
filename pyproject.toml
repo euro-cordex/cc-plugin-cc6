@@ -62,8 +62,8 @@ dev = [
 
 [project.urls]
 documentation = "http://ioos.github.io/compliance-checker"
-homepage = "https://github.com/sol1105/cc-plugin-cc6"
-repository = "https://github.com/sol1105/cc-plugin-cc6"
+homepage = "https://github.com/euro-cordex/cc-plugin-cc6"
+repository = "https://github.com/euro-cordex/cc-plugin-cc6"
 
 [tool.black]
 target-version = [

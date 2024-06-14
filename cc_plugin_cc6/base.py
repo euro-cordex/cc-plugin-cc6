@@ -15,7 +15,7 @@ class CORDEXCIMP6Base(BaseCheck):
     _cc_spec = "cc6"
     _cc_spec_version = "1.0"
     _cc_description = "Checks compliance with CORDEX-CMIP6."
-    _cc_url = "https://github.com/sol1105/cc-plugin-cc6"
+    _cc_url = "https://github.com/euro-cordex/cc-plugin-cc6"
     _cc_checker_version = __version__
     _cc_display_headers = {3: "Required", 2: "Recommended", 1: "Suggested"}
 
