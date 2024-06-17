@@ -61,5 +61,3 @@ Failures in these checks should be addressed before submitting the data for publ
 ## Environment variables
 Path for the [CORDEX-CMIP6 CMOR tables](https://github.com/WCRP-CORDEX/cordex-cmip6-cmor-tables) (subdirectory Tables):
 - `CORDEXCMIP6TABLESPATH`
-
-
