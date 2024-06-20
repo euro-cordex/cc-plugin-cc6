@@ -1,0 +1,20 @@
+name: cc-plugin-cc6-tests
+channels:
+  - conda-forge
+  - nodefaults
+dependencies:
+  - pyproj>=3.3.0 # rotated pole bug: https://github.com/pyproj4/pyproj/issues/948
+  - numpy
+  - setuptools
+  - xarray!=2023.9.0 # see https://github.com/pydata/xarray/issues/8271
+  - cf_xarray>=0.8.0
+  - cftime
+  - netCDF4
+  - cdo # python-cdo fails with cdo2
+  - python-cdo
+  - py-cordex
+  - pooch
+# for testing
+  - pytest
+  - pytest-cov
+  - pytest-env

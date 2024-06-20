@@ -1,0 +1,31 @@
+name: py-cordex-docs
+channels:
+  - conda-forge
+dependencies:
+  - python=3.10
+  - pint-xarray
+  - matplotlib-base
+  - xarray
+  - cf_xarray
+  - nbconvert
+  - numpydoc
+  - pillow
+  - pip
+  - nbsphinx
+  - nbsphinx-link
+  - ipython
+  - cftime
+  - pooch
+  - pyproj
+  - cartopy
+  - pykdtree
+  - sphinx
+  - cdo
+  - python-cdo
+  - netcdf4
+  - pydata-sphinx-theme
+  - sphinx-book-theme>=0.3.3
+  - sphinx-autosummary-accessors
+  - pip:
+    - sphinxcontrib-mockautodoc
+    - myst_nb
