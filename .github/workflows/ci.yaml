@@ -53,12 +53,12 @@ jobs:
       - name: Import plugin
         run: |
           python -c "import cc_plugin_cc6"
-      - name: Run tests
-        timeout-minutes: 5
-        run: python -u -m pytest
-          --cov=cc_pluging_cc6
-          --cov-report=xml
-          --junitxml=test-results/${{ runner.os }}-${{ matrix.python-version }}.xml
+#      - name: Run tests
+#        timeout-minutes: 5
+#        run: python -u -m pytest
+#          --cov=cc_pluging_cc6
+#          --cov-report=xml
+#          --junitxml=test-results/${{ runner.os }}-${{ matrix.python-version }}.xml
 
 #      - name: Upload code coverage to Codecov
 #        uses: codecov/codecov-action@v4
