@@ -1,13 +1,17 @@
 import json
 import os
 import re
+from datetime import timedelta
 from pathlib import Path
 
+import cftime
+import xarray as xr
 from compliance_checker.base import BaseCheck, BaseNCCheck, Result
 
 from cc_plugin_cc6 import __version__
 
-# import xarray as xr
+from ._constants import deltdic
+
 # import cf_xarray, cftime
 
 
@@ -32,7 +36,7 @@ class CORDEXCMIP6(BaseNCCheck, CORDEXCIMP6Base):
         self.debug = True
         self.dataset = dataset
         self.options = self.options
-        # self.ds = xr.open_dataset(dataset.filepath(), decode_times=False)
+        self.xrds = xr.open_dataset(dataset.filepath(), decode_times=False)
         # Get path to the tables
         if self.inputs.get("tables", False):
             cc6cv = self.inputs["tables"]
@@ -93,6 +97,61 @@ class CORDEXCMIP6(BaseNCCheck, CORDEXCIMP6Base):
         # Identify variable name(s)
         var_ids = [v for v in varlist if v in list(dataset.variables.keys())]
         self.varname = var_ids
+        # Identify table_id, requested frequency and cell_methods
+        try:
+            self.table_id = dataset.getncattr("table_id")
+        except AttributeError:
+            self.table_id = "unknown"
+        self.frequency = self._get_frequency()
+        # In case of unset table_id -
+        #  in some projects (eg. CORDEX), the table_id is not required,
+        #  since there is one table per frequency, so table_id = frequency.
+        if self.table_id == "unknown":
+            if len([key for key in self.CT.keys() if self.frequency in key]) == 1:
+                self.table_id = self.frequency
+        self.cell_methods = self._get_cell_methods()
+
+    def _infer_frequency(self, timevar):
+        try:
+            time = xr.decode_cf(
+                self.xrds[timevar].copy(deep=True), decode_times=True, use_cftime=True
+            )
+            return xr.infer_freq(time)
+        except ValueError:
+            return "unknown"
+
+    def _get_attr(self, attr):
+        try:
+            return self.dataset.getncattr(attr)
+        except AttributeError:
+            return "unknown"
+
+    def _get_frequency(self):
+        """Returns the requested frequency."""
+        # Use table_id if available
+        if self.table_id != "unknown":
+            if len(self.varname) > 0:
+                try:
+                    return self.CT[self.table_id]["variable_entry"][self.varname[0]][
+                        "frequency"
+                    ]
+                except KeyError:
+                    return self._get_attr("frequency")
+            else:
+                return "unknown"
+        return self._get_attr("frequency")
+
+    def _get_cell_methods(self):
+        """Returns the requested cell methods."""
+        if self.table_id != "unknown":
+            if len(self.varname) > 0:
+                try:
+                    return self.CT[self.table_id]["variable_entry"][self.varname[0]][
+                        "cell_methods"
+                    ]
+                except KeyError:
+                    return "unknown"
+        return "unknown"
 
     def _read_CV(self, path, table_prefix, table_name):
         """Reads the specified CV table."""
@@ -469,5 +528,121 @@ class CORDEXCMIP6(BaseNCCheck, CORDEXCIMP6Base):
             score += int(test)
             if not test:
                 messages.append(f"Required global attribute '{attr}' is missing.")
+
+        return self.make_result(level, score, out_of, desc, messages)
+
+    # def check_time_completeness(self):
+    #    pass
+
+    # def check_time_range(self):
+    #    pass
+
+    def check_time_chunking(self, ds):
+        """Checks if the chunking with respect to the time dimension is in accordance with CORDEX-CMIP6 Archive Specifications."""
+        desc = "File chunking."
+        level = BaseCheck.MEDIUM
+        score = 0
+        out_of = 1
+        messages = []
+
+        # Check if frequency is known and supported
+        # Supported is the intersection of:
+        #  CORDEX-CMIP6: fx, 1hr, day, mon
+        #  deltdic.keys() - whatever frequencies are defined there
+        if self.frequency in ["unknown", "fx"]:
+            return self.make_result(level, out_of, out_of, desc, messages)
+        if self.frequency not in deltdic.keys() or self.frequency not in [
+            "1hr",
+            "day",
+            "mon",
+        ]:
+            messages.append(f"Frequency '{self.frequency}' not supported.")
+            return self.make_result(level, score, out_of, desc, messages)
+
+        # Get the time dimension, calendar and units
+        try:
+            time = self.xrds.cf["time"]
+        except KeyError:
+            messages.append("Coordinate variable 'time' not found in file.")
+            return self.make_result(level, score, out_of, desc, messages)
+        if "calendar" not in time.attrs:
+            messages.append("'time' variable has no 'calendar' attribute.")
+        if "units" not in time.attrs:
+            messages.append("'time' variable has no 'units' attribute.")
+        if len(messages) > 0:
+            return self.make_result(level, score, out_of, desc, messages)
+
+        # Get the first and last time values
+        first_time = time[0].values
+        last_time = time[-1].values
+
+        # Convert the first and last time values to cftime.datetime objects
+        first_time = cftime.num2date(
+            first_time, calendar=time.calendar, units=time.units
+        )
+        last_time = cftime.num2date(last_time, calendar=time.calendar, units=time.units)
+
+        # File chunks as requested by CORDEX-CMIP6
+        if self.frequency == "mon":
+            nyears = 10
+        elif self.frequency == "day":
+            nyears = 5
+        # subdaily
+        else:
+            nyears = 1
+
+        # Calculate the expected start and end dates of the year
+        expected_start_date = cftime.datetime(
+            first_time.year, 1, 1, 0, 0, 0, calendar=time.calendar
+        )
+        expected_end_date = cftime.datetime(
+            last_time.year + nyears, 1, 1, 0, 0, 0, calendar=time.calendar
+        )
+
+        # Apply calendar- and frequency-dependent adjustments
+        offset = 0
+        if time.calendar == "360_day" and self.frequency == "mon":
+            offset = timedelta(hours=12)
+
+        # Modify expected start and end dates based on cell_methods and above offset
+        if bool(re.fullmatch("^.*time: point.*$", self.cell_methods, flags=re.ASCII)):
+            expected_end_date = expected_end_date - timedelta(
+                seconds=deltdic[self.frequency] - offset - offset
+            )
+        elif bool(
+            re.fullmatch(
+                "^.*time: (maximum|minimum|mean|sum).*$",
+                self.cell_methods,
+                flags=re.ASCII,
+            )
+        ):
+            expected_start_date += timedelta(
+                seconds=deltdic[self.frequency] / 2.0 - offset
+            )
+            expected_end_date -= timedelta(
+                seconds=deltdic[self.frequency] / 2.0 - offset
+            )
+        else:
+            messages.append(f"Cannot interpret cell_methods '{self.cell_methods}'.")
+
+        if len(messages) == 0:
+            errmsg = (
+                f"{'Unless for the last file of a timeseries ' if nyears>1 else ''}'{nyears}' full simulation year{' is' if nyears==1 else 's are'} "
+                f"expected in the data file for frequency '{self.frequency}'."
+            )
+            # Check if the first time is equal to the expected start date
+            if first_time != expected_start_date:
+                messages.append(
+                    f"The first timestep differs from expectation ('{expected_start_date}'): '{first_time}'. "
+                    + errmsg
+                )
+            # Check if the last time is equal to the expected end date
+            if last_time != expected_end_date:
+                messages.append(
+                    f"The last timestep differs from expectation ('{expected_end_date}'): '{last_time}'. "
+                    + errmsg
+                )
+        if len(messages) == 0:
+            score += 1
 
         return self.make_result(level, score, out_of, desc, messages)
