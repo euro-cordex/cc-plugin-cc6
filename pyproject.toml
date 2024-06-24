@@ -42,7 +42,7 @@ dynamic = [
 ]
 
 [project.entry-points."compliance_checker.suites"]
-cc6 = "cc_plugin_cc6.base:CORDEXCMIP6"
+cc6 = "cc_plugin_cc6.cc6:CORDEXCMIP6"
 
 [project.optional-dependencies]
 dev = [

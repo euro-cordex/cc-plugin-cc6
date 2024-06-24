@@ -1,32 +1,25 @@
 import json
 import os
 import re
-from datetime import timedelta
 from pathlib import Path
 
-import cftime
 import xarray as xr
 from compliance_checker.base import BaseCheck, BaseNCCheck, Result
 
 from cc_plugin_cc6 import __version__
 
-from ._constants import deltdic
 
-# import cf_xarray, cftime
-
-
-class CORDEXCIMP6Base(BaseCheck):
-    register_checker = True
-    _cc_spec = "cc6"
-    _cc_spec_version = "1.0"
-    _cc_description = "Checks compliance with CORDEX-CMIP6."
-    _cc_url = "https://github.com/euro-cordex/cc-plugin-cc6"
+class MIPCVCheckBase(BaseCheck):
+    register_checker = False
+    _cc_spec = ""
+    _cc_spec_version = __version__
+    _cc_description = "Checks compliance with given CV tables."
     _cc_checker_version = __version__
     _cc_display_headers = {3: "Required", 2: "Recommended", 1: "Suggested"}
 
 
-class CORDEXCMIP6(BaseNCCheck, CORDEXCIMP6Base):
-    register_checker = True
+class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
+    register_checker = False
 
     @classmethod
     def make_result(cls, level, score, out_of, name, messages):
@@ -36,21 +29,25 @@ class CORDEXCMIP6(BaseNCCheck, CORDEXCIMP6Base):
         self.debug = True
         self.dataset = dataset
         self.options = self.options
-        self.xrds = xr.open_dataset(dataset.filepath(), decode_times=False)
+        self.filepath = os.path.realpath(
+            os.path.normpath(os.path.expanduser(self.dataset.filepath()))
+        )
+        self.xrds = xr.open_dataset(self.filepath, decode_times=False)
         # Get path to the tables
         if self.inputs.get("tables", False):
-            cc6cv = self.inputs["tables"]
-        else:
-            cc6cv = "./"
-            # Download tables
-            #   to be implemented
-            # Environment variable
-            # cc6cv = os.getenv("CORDEXCMIP6TABLESPATH", "./")
+            tables_path = self.inputs["tables"]
+            self._initialize_CV_info(tables_path)
+
+    def _initialize_CV_info(self, tables_path):
+        """Find and read CV and CMOR tables and extract basic information."""
         # Identify table prefix and table names
+        tables_path = os.path.normpath(
+            os.path.realpath(os.path.expanduser(tables_path))
+        )
         tables = [
             t
-            for t in os.listdir(cc6cv)
-            if os.path.isfile(os.path.join(cc6cv, t))
+            for t in os.listdir(tables_path)
+            if os.path.isfile(os.path.join(tables_path, t))
             and t.endswith(".json")
             and "example" not in t
         ]
@@ -61,16 +58,16 @@ class CORDEXCMIP6(BaseNCCheck, CORDEXCIMP6Base):
                 "CMOR tables do not follow the naming convention '<project_id>_<table_id>.json'."
             )
         # Read CV and coordinate tables
-        self.CV = self._read_CV(cc6cv, table_prefix, "CV")["CV"]
-        self.coords = self._read_CV(cc6cv, table_prefix, "coordinate")
-        self.grids = self._read_CV(cc6cv, table_prefix, "grids")
-        self.formulas = self._read_CV(cc6cv, table_prefix, "formula_terms")
+        self.CV = self._read_CV(tables_path, table_prefix, "CV")["CV"]
+        self.coords = self._read_CV(tables_path, table_prefix, "coordinate")
+        self.grids = self._read_CV(tables_path, table_prefix, "grids")
+        self.formulas = self._read_CV(tables_path, table_prefix, "formula_terms")
         # Read variable tables (variable tables)
         self.CT = {}
         for table in table_names:
             if table in ["CV", "grids", "coordinate", "formula_terms"]:
                 continue
-            self.CT[table] = self._read_CV(cc6cv, table_prefix, table)
+            self.CT[table] = self._read_CV(tables_path, table_prefix, table)
             if "variable_entry" not in self.CT[table]:
                 raise KeyError(
                     f"CMOR table '{table}' does not contain the key 'variable_entry'."
@@ -95,21 +92,40 @@ class CORDEXCMIP6(BaseNCCheck, CORDEXCIMP6Base):
         # Map DRS building blocks to the filename, filepath and global attributes
         self._map_drs_blocks()
         # Identify variable name(s)
-        var_ids = [v for v in varlist if v in list(dataset.variables.keys())]
+        var_ids = [v for v in varlist if v in list(self.dataset.variables.keys())]
         self.varname = var_ids
         # Identify table_id, requested frequency and cell_methods
-        try:
-            self.table_id = dataset.getncattr("table_id")
-        except AttributeError:
-            self.table_id = "unknown"
-        self.frequency = self._get_frequency()
+        self.table_id = self._get_attr("table_id")
+        self.frequency = self._get_var_attr(self.varname, "frequency", False)
+        if not self.frequency:
+            self.frequency = self._get_attr("frequency")
         # In case of unset table_id -
         #  in some projects (eg. CORDEX), the table_id is not required,
         #  since there is one table per frequency, so table_id = frequency.
         if self.table_id == "unknown":
-            if len([key for key in self.CT.keys() if self.frequency in key]) == 1:
-                self.table_id = self.frequency
+            possible_ids = [key for key in self.CT.keys() if self.frequency in key]
+            if len(possible_ids) == 1:
+                if self.debug:
+                    print("Determined possible table_id = ", possible_ids[0])
+                self.table_id = possible_ids[0]
         self.cell_methods = self._get_cell_methods()
+
+    def _get_attr(self, attr, default="unknown"):
+        try:
+            return self.dataset.getncattr(attr)
+        except AttributeError:
+            return default
+
+    def _get_var_attr(self, var, attr, default="unknown"):
+        if self.table_id != "unknown":
+            if len(self.varname) > 0:
+                try:
+                    return self.CT[self.table_id]["variable_entry"][self.varname[0]][
+                        attr
+                    ]
+                except KeyError:
+                    return default
+        return default
 
     def _infer_frequency(self, timevar):
         try:
@@ -120,44 +136,11 @@ class CORDEXCMIP6(BaseNCCheck, CORDEXCIMP6Base):
         except ValueError:
             return "unknown"
 
-    def _get_attr(self, attr):
-        try:
-            return self.dataset.getncattr(attr)
-        except AttributeError:
-            return "unknown"
-
-    def _get_frequency(self):
-        """Returns the requested frequency."""
-        # Use table_id if available
-        if self.table_id != "unknown":
-            if len(self.varname) > 0:
-                try:
-                    return self.CT[self.table_id]["variable_entry"][self.varname[0]][
-                        "frequency"
-                    ]
-                except KeyError:
-                    return self._get_attr("frequency")
-            else:
-                return "unknown"
-        return self._get_attr("frequency")
-
-    def _get_cell_methods(self):
-        """Returns the requested cell methods."""
-        if self.table_id != "unknown":
-            if len(self.varname) > 0:
-                try:
-                    return self.CT[self.table_id]["variable_entry"][self.varname[0]][
-                        "cell_methods"
-                    ]
-                except KeyError:
-                    return "unknown"
-        return "unknown"
-
     def _read_CV(self, path, table_prefix, table_name):
         """Reads the specified CV table."""
-        cc6cv = Path(path, f"{table_prefix}_{table_name}.json")
+        table_path = Path(path, f"{table_prefix}_{table_name}.json")
         try:
-            with open(cc6cv) as f:
+            with open(table_path) as f:
                 return json.load(f)
         except (FileNotFoundError, IsADirectoryError, PermissionError) as e:
             raise Exception(
@@ -174,7 +157,8 @@ class CORDEXCMIP6(BaseNCCheck, CORDEXCIMP6Base):
         # 3 # key -> *dict key -> value
         # 4 # key -> *dict key -> dict key -> *value
         # 5 # key -> *dict key -> dict key -> *list of values
-        # 6 # key (source_id) -> *dict key -> dict key (license_info) -> dict key (id, license) -> value (CMIP6 only)
+        # CMIP6 only and not considered here:
+        # 6 # key (source_id) -> *dict key -> dict key (license_info) -> dict key (id, license) -> value
         # ########################################################################################
         # 0 (2nd+ level comparison) #
         if isinstance(el, str):
@@ -285,9 +269,7 @@ class CORDEXCMIP6(BaseNCCheck, CORDEXCIMP6Base):
 
         # Map DRS path elements
         self.drs_dir = {}
-        fps = os.path.dirname(
-            os.path.normpath(os.path.realpath(self.dataset.filepath()))
-        ).split(os.sep)
+        fps = os.path.dirname(self.filepath).split(os.sep)
         for i in range(-1, -len(drs_path_template) - 1, -1):
             try:
                 self.drs_dir[drs_path_template[i]] = fps[i]
@@ -296,7 +278,7 @@ class CORDEXCMIP6(BaseNCCheck, CORDEXCIMP6Base):
 
         # Map DRS filename elements
         self.drs_fn = {}
-        fns = os.path.basename(self.dataset.filepath()).split(".")[0].split("_")
+        fns = os.path.basename(self.filepath).split(".")[0].split("_")
         for i in range(len(drs_filename_template)):
             try:
                 self.drs_fn[drs_filename_template[i]] = fns[i]
@@ -313,7 +295,7 @@ class CORDEXCMIP6(BaseNCCheck, CORDEXCIMP6Base):
                     self.drs_gatts[gatt] = False
 
     def check_drs_CV(self, ds):
-        """DRS building blocks in filename and path checked against CV"""
+        """DRS building blocks in filename and path checked against CV."""
         desc = "DRS (CV)"
         level = BaseCheck.HIGH
         out_of = 3
@@ -321,7 +303,7 @@ class CORDEXCMIP6(BaseNCCheck, CORDEXCIMP6Base):
         messages = []
 
         # File suffix
-        suffix = ".".join(os.path.basename(ds.filepath()).split(".")[1:])
+        suffix = ".".join(os.path.basename(self.filepath).split(".")[1:])
         if self.drs_suffix == suffix:
             score += 1
         else:
@@ -368,7 +350,7 @@ class CORDEXCMIP6(BaseNCCheck, CORDEXCIMP6Base):
         return self.make_result(level, score, out_of, desc, messages)
 
     def check_drs_consistency(self, ds):
-        """DRS building blocks in filename, path and global attributes checked for consistency"""
+        """DRS building blocks in filename, path and global attributes checked for consistency."""
         desc = "DRS (consistency)"
         level = BaseCheck.HIGH
         out_of = 1
@@ -397,31 +379,6 @@ class CORDEXCMIP6(BaseNCCheck, CORDEXCIMP6Base):
                 )
                 flaw = True
         if not flaw:
-            score += 1
-
-        return self.make_result(level, score, out_of, desc, messages)
-
-    def check_format(self, ds):
-        """Checks if the file is in the expected format."""
-        desc = "File format"
-        level = BaseCheck.HIGH
-        out_of = 1
-        score = 0
-        messages = []
-
-        # Expected for raw model output
-        disk_format_expected = "HDF5"
-        data_model_expected = "NETCDF4"
-        data_model_expected = "NETCDF4_CLASSIC"
-
-        if (
-            ds.disk_format != disk_format_expected
-            or ds.data_model != data_model_expected
-        ):
-            messages.append(
-                f"File format differs from expectation ({data_model_expected}/{disk_format_expected}): '{ds.data_model}/{ds.disk_format}'."
-            )
-        else:
             score += 1
 
         return self.make_result(level, score, out_of, desc, messages)
@@ -478,40 +435,6 @@ class CORDEXCMIP6(BaseNCCheck, CORDEXCIMP6Base):
 
         return self.make_result(level, score, out_of, desc, messages)
 
-    def check_compression(self, ds):
-        """Checks if the main variable is compressed in the recommended way."""
-        desc = "Compression"
-        level = BaseCheck.MEDIUM
-        out_of = 1
-        score = 0
-        messages = []
-
-        if len(self.varname) > 0:
-            varname = self.varname[0]
-        else:
-            varname = False
-        if varname is False:
-            score += 1
-        elif (
-            ds[varname].filters()["complevel"] != 1
-            or ds[varname].filters()["shuffle"] is False
-        ):
-            messages.append(
-                "It is recommended that data should be compressed with a 'deflate level' of '1' and enabled 'shuffle' option."
-            )
-            if ds[varname].filters()["complevel"] < 1:
-                messages.append(" The data is uncompressed.")
-            elif ds[varname].filters()["complevel"] > 1:
-                messages.append(
-                    " The data is compressed with a higher 'deflate level' than recommended, this can lead to performance issues when accessing the data."
-                )
-            if ds[varname].filters()["shuffle"] is False:
-                messages.append(" The 'shuffle' option is disabled.")
-        else:
-            score += 1
-
-        return self.make_result(level, score, out_of, desc, messages)
-
     def check_required_global_attributes(self, ds):
         """Checks presence of mandatory global attributes."""
         desc = "Required global attributes."
@@ -536,113 +459,3 @@ class CORDEXCMIP6(BaseNCCheck, CORDEXCIMP6Base):
 
     # def check_time_range(self):
     #    pass
-
-    def check_time_chunking(self, ds):
-        """Checks if the chunking with respect to the time dimension is in accordance with CORDEX-CMIP6 Archive Specifications."""
-        desc = "File chunking."
-        level = BaseCheck.MEDIUM
-        score = 0
-        out_of = 1
-        messages = []
-
-        # Check if frequency is known and supported
-        # Supported is the intersection of:
-        #  CORDEX-CMIP6: fx, 1hr, day, mon
-        #  deltdic.keys() - whatever frequencies are defined there
-        if self.frequency in ["unknown", "fx"]:
-            return self.make_result(level, out_of, out_of, desc, messages)
-        if self.frequency not in deltdic.keys() or self.frequency not in [
-            "1hr",
-            "day",
-            "mon",
-        ]:
-            messages.append(f"Frequency '{self.frequency}' not supported.")
-            return self.make_result(level, score, out_of, desc, messages)
-
-        # Get the time dimension, calendar and units
-        try:
-            time = self.xrds.cf["time"]
-        except KeyError:
-            messages.append("Coordinate variable 'time' not found in file.")
-            return self.make_result(level, score, out_of, desc, messages)
-        if "calendar" not in time.attrs:
-            messages.append("'time' variable has no 'calendar' attribute.")
-        if "units" not in time.attrs:
-            messages.append("'time' variable has no 'units' attribute.")
-        if len(messages) > 0:
-            return self.make_result(level, score, out_of, desc, messages)
-
-        # Get the first and last time values
-        first_time = time[0].values
-        last_time = time[-1].values
-
-        # Convert the first and last time values to cftime.datetime objects
-        first_time = cftime.num2date(
-            first_time, calendar=time.calendar, units=time.units
-        )
-        last_time = cftime.num2date(last_time, calendar=time.calendar, units=time.units)
-
-        # File chunks as requested by CORDEX-CMIP6
-        if self.frequency == "mon":
-            nyears = 10
-        elif self.frequency == "day":
-            nyears = 5
-        # subdaily
-        else:
-            nyears = 1
-
-        # Calculate the expected start and end dates of the year
-        expected_start_date = cftime.datetime(
-            first_time.year, 1, 1, 0, 0, 0, calendar=time.calendar
-        )
-        expected_end_date = cftime.datetime(
-            last_time.year + nyears, 1, 1, 0, 0, 0, calendar=time.calendar
-        )
-
-        # Apply calendar- and frequency-dependent adjustments
-        offset = 0
-        if time.calendar == "360_day" and self.frequency == "mon":
-            offset = timedelta(hours=12)
-
-        # Modify expected start and end dates based on cell_methods and above offset
-        if bool(re.fullmatch("^.*time: point.*$", self.cell_methods, flags=re.ASCII)):
-            expected_end_date = expected_end_date - timedelta(
-                seconds=deltdic[self.frequency] - offset - offset
-            )
-        elif bool(
-            re.fullmatch(
-                "^.*time: (maximum|minimum|mean|sum).*$",
-                self.cell_methods,
-                flags=re.ASCII,
-            )
-        ):
-            expected_start_date += timedelta(
-                seconds=deltdic[self.frequency] / 2.0 - offset
-            )
-            expected_end_date -= timedelta(
-                seconds=deltdic[self.frequency] / 2.0 - offset
-            )
-        else:
-            messages.append(f"Cannot interpret cell_methods '{self.cell_methods}'.")
-
-        if len(messages) == 0:
-            errmsg = (
-                f"{'Unless for the last file of a timeseries ' if nyears>1 else ''}'{nyears}' full simulation year{' is' if nyears==1 else 's are'} "
-                f"expected in the data file for frequency '{self.frequency}'."
-            )
-            # Check if the first time is equal to the expected start date
-            if first_time != expected_start_date:
-                messages.append(
-                    f"The first timestep differs from expectation ('{expected_start_date}'): '{first_time}'. "
-                    + errmsg
-                )
-            # Check if the last time is equal to the expected end date
-            if last_time != expected_end_date:
-                messages.append(
-                    f"The last timestep differs from expectation ('{expected_end_date}'): '{last_time}'. "
-                    + errmsg
-                )
-        if len(messages) == 0:
-            score += 1
-
-        return self.make_result(level, score, out_of, desc, messages)
