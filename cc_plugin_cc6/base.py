@@ -335,7 +335,7 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
             score += 1
         else:
             messages.append(
-                f"""DRS path building blocks could not be checked: {', '.join("'{0}'".format(ukey) for ukey in unchecked)}."""
+                f"""DRS path building blocks could not be checked: {', '.join(f"'{ukey}'" for ukey in unchecked)}."""
             )
 
         # Unchecked DRS filename building blocks
@@ -344,7 +344,7 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
             score += 1
         else:
             messages.append(
-                f"""DRS filename building blocks could not be checked: {', '.join("'{0}'".format(ukey) for ukey in unchecked)}."""
+                f"""DRS filename building blocks could not be checked: {', '.join(f"'{ukey}'" for ukey in unchecked)}."""
             )
 
         return self.make_result(level, score, out_of, desc, messages)
