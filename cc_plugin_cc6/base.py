@@ -1,8 +1,10 @@
 import json
 import os
 import re
+from collections import ChainMap
 from pathlib import Path
 
+import numpy as np
 import xarray as xr
 from compliance_checker.base import BaseCheck, BaseNCCheck, Result
 
@@ -37,6 +39,7 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
         if self.inputs.get("tables", False):
             tables_path = self.inputs["tables"]
             self._initialize_CV_info(tables_path)
+            self._initialize_time_info()
 
     def _initialize_CV_info(self, tables_path):
         """Find and read CV and CMOR tables and extract basic information."""
@@ -108,15 +111,43 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
                 if self.debug:
                     print("Determined possible table_id = ", possible_ids[0])
                 self.table_id = possible_ids[0]
-        self.cell_methods = self._get_cell_methods()
+        self.cell_methods = self._get_var_attr(self.varname, "cell_methods", "unknown")
+        # Get missing_value
+        if self.table_id == "unknown":
+            self.missing_value = None
+        else:
+            self.missing_value = float(
+                self.CT[self.table_id]["Header"]["missing_value"]
+            )
+
+    def _initialize_time_info(self):
+        """Get information about the infile time axis."""
+        try:
+            self.time = self.xrds.cf["time"]
+        except KeyError:
+            self.time = None
+        if self.time is not None:
+            self.calendar = getattr(self.time, "calendar", None)
+            self.timeunits = getattr(self.time, "units", None)
+            self.timebnds = getattr(self.time, "bounds", None)
+            self.timedec = xr.decode_cf(
+                self.xrds.copy(deep=True), decode_times=True, use_cftime=True
+            ).cf["time"]
+        else:
+            self.calendar = None
+            self.timeunits = None
+            self.timebnds = None
+            self.timedec = None
 
     def _get_attr(self, attr, default="unknown"):
+        """Get nc attribute."""
         try:
             return self.dataset.getncattr(attr)
         except AttributeError:
             return default
 
     def _get_var_attr(self, var, attr, default="unknown"):
+        """Get nc variable attribute."""
         if self.table_id != "unknown":
             if len(self.varname) > 0:
                 try:
@@ -127,12 +158,10 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
                     return default
         return default
 
-    def _infer_frequency(self, timevar):
+    def _infer_frequency(self):
+        """Infer frequency from given time dimension"""
         try:
-            time = xr.decode_cf(
-                self.xrds[timevar].copy(deep=True), decode_times=True, use_cftime=True
-            )
-            return xr.infer_freq(time)
+            return xr.infer_freq(self.timedec)
         except ValueError:
             return "unknown"
 
@@ -451,6 +480,50 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
             score += int(test)
             if not test:
                 messages.append(f"Required global attribute '{attr}' is missing.")
+
+        return self.make_result(level, score, out_of, desc, messages)
+
+    def check_missing_value(self, ds):
+        """Checks missing value."""
+        desc = "Missing values"
+        level = BaseCheck.HIGH
+        out_of = 3
+        score = 0
+        messages = []
+
+        # Check '_FillValue' and 'missing_value'
+        if len(self.varname) > 0:
+            fval = ChainMap(
+                self.xrds[self.varname[0]].attrs, self.xrds[self.varname[0]].encoding
+            ).get("_FillValue", None)
+            mval = ChainMap(
+                self.xrds[self.varname[0]].attrs, self.xrds[self.varname[0]].encoding
+            ).get("missing_value", None)
+            if fval is None or mval is None:
+                messages.append(
+                    f"Both, 'missing_value' and '_FillValue' have to be set for variable '{self.varname[0]}'."
+                )
+            elif fval != mval:
+                score += 1
+                messages.append(
+                    f"The variable attributes '_FillValue' and 'missing_value' differ for variable '{self.varname[0]}': '{fval}' and '{mval}', respectively."
+                )
+            else:
+                score += 2
+            if self.missing_value and (fval or mval):
+                if not (
+                    np.isclose(self.missing_value, fval)
+                    and np.isclose(self.missing_value, mval)
+                ):
+                    messages.append(
+                        f"The variable attributes '_FillValue' and/or 'missing_value' differ from the requested value ('{self.missing_value}'): '{fval}' and/or '{mval}', respectively."
+                    )
+                else:
+                    score += 1
+            else:
+                score += 1
+        else:
+            score += 3
 
         return self.make_result(level, score, out_of, desc, messages)
 

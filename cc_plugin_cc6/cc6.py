@@ -51,6 +51,7 @@ class CORDEXCMIP6(MIPCVCheck):
                     )
 
             self._initialize_CV_info(tables_path)
+            self._initialize_time_info()
 
     def check_format(self, ds):
         """Checks if the file is in the expected format."""
@@ -127,6 +128,7 @@ class CORDEXCMIP6(MIPCVCheck):
             return self.make_result(level, out_of, out_of, desc, messages)
         if self.frequency not in deltdic.keys() or self.frequency not in [
             "1hr",
+            "6hr",
             "day",
             "mon",
         ]:
@@ -134,27 +136,27 @@ class CORDEXCMIP6(MIPCVCheck):
             return self.make_result(level, score, out_of, desc, messages)
 
         # Get the time dimension, calendar and units
-        try:
-            time = self.xrds.cf["time"]
-        except KeyError:
+        if self.time is None:
             messages.append("Coordinate variable 'time' not found in file.")
             return self.make_result(level, score, out_of, desc, messages)
-        if "calendar" not in time.attrs:
+        if self.calendar is None:
             messages.append("'time' variable has no 'calendar' attribute.")
-        if "units" not in time.attrs:
+        if self.timeunits is None:
             messages.append("'time' variable has no 'units' attribute.")
         if len(messages) > 0:
             return self.make_result(level, score, out_of, desc, messages)
 
         # Get the first and last time values
-        first_time = time[0].values
-        last_time = time[-1].values
+        first_time = self.time[0].values
+        last_time = self.time[-1].values
 
         # Convert the first and last time values to cftime.datetime objects
         first_time = cftime.num2date(
-            first_time, calendar=time.calendar, units=time.units
+            first_time, calendar=self.calendar, units=self.timeunits
         )
-        last_time = cftime.num2date(last_time, calendar=time.calendar, units=time.units)
+        last_time = cftime.num2date(
+            last_time, calendar=self.calendar, units=self.timeunits
+        )
 
         # File chunks as requested by CORDEX-CMIP6
         if self.frequency == "mon":
@@ -167,15 +169,15 @@ class CORDEXCMIP6(MIPCVCheck):
 
         # Calculate the expected start and end dates of the year
         expected_start_date = cftime.datetime(
-            first_time.year, 1, 1, 0, 0, 0, calendar=time.calendar
+            first_time.year, 1, 1, 0, 0, 0, calendar=self.calendar
         )
         expected_end_date = cftime.datetime(
-            last_time.year + nyears, 1, 1, 0, 0, 0, calendar=time.calendar
+            last_time.year + nyears, 1, 1, 0, 0, 0, calendar=self.calendar
         )
 
         # Apply calendar- and frequency-dependent adjustments
         offset = 0
-        if time.calendar == "360_day" and self.frequency == "mon":
+        if self.calendar == "360_day" and self.frequency == "mon":
             offset = timedelta(hours=12)
 
         # Modify expected start and end dates based on cell_methods and above offset
@@ -218,5 +220,186 @@ class CORDEXCMIP6(MIPCVCheck):
                 )
         if len(messages) == 0:
             score += 1
+
+        return self.make_result(level, score, out_of, desc, messages)
+
+    def check_time_range_AS(self, ds):
+        """Checks if the time range is as expected."""
+        desc = "Time range (Archive Specifications)"
+        level = BaseCheck.HIGH
+        out_of = 1
+        score = 0
+        messages = []
+
+        # Check if frequency is known and supported
+        # Supported is the intersection of:
+        #  CORDEX-CMIP6: fx, 1hr, day, mon
+        #  deltdic.keys() - whatever frequencies are defined there
+        if self.frequency in ["unknown", "fx"]:
+            return self.make_result(level, out_of, out_of, desc, messages)
+        if self.frequency not in deltdic.keys() or self.frequency not in [
+            "1hr",
+            "6hr",
+            "day",
+            "mon",
+        ]:
+            messages.append(f"Frequency '{self.frequency}' not supported.")
+            return self.make_result(level, score, out_of, desc, messages)
+
+        # Get the time dimension, calendar and units
+        if self.time is None:
+            messages.append("Coordinate variable 'time' not found in file.")
+            return self.make_result(level, score, out_of, desc, messages)
+        if self.calendar is None:
+            messages.append("'time' variable has no 'calendar' attribute.")
+        if self.timeunits is None:
+            messages.append("'time' variable has no 'units' attribute.")
+        if len(messages) > 0:
+            return self.make_result(level, score, out_of, desc, messages)
+
+        # Get the first and last time values
+        first_time = self.time[0].values
+        last_time = self.time[-1].values
+
+        # Convert the first and last time values to cftime.datetime objects
+        first_time = cftime.num2date(
+            first_time, calendar=self.calendar, units=self.timeunits
+        )
+        last_time = cftime.num2date(
+            last_time, calendar=self.calendar, units=self.timeunits
+        )
+
+        # Compile the expected time_range
+        if self.frequency == "mon":
+            time_range = f"{first_time.strftime(format='%4Y%2m')}-{last_time.strftime(format='%4Y%2m')}"
+        elif self.frequency == "day":
+            time_range = f"{first_time.strftime(format='%4Y%2m%2d')}-{last_time.strftime(format='%4Y%2m%2d')}"
+        elif self.frequency in ["1hr", "6hr"]:
+            time_range = f"{first_time.strftime(format='%4Y%2m%2d%2H%2M')}-{last_time.strftime(format='%4Y%2m%2d%2H%2M')}"
+        else:
+            time_range = ""
+
+        # Check if the time_range is as expected
+        if self.drs_fn["time_range"] != time_range:
+            messages.append(
+                f"Expected time_range '{time_range}' but found '{self.drs_fn['time_range'] if self.drs_fn['time_range'] else 'unset'}'."
+            )
+        if len(messages) == 0:
+            score += 1
+
+        return self.make_result(level, score, out_of, desc, messages)
+
+    def check_calendar(self, ds):
+        """Checks if the time attributes are as recommended."""
+        desc = "Calendar (Archive Specifications)"
+        level = BaseCheck.MEDIUM
+        out_of = 1
+        score = 0
+        messages = []
+
+        # Check calendar
+        if self.time is not None:
+            if self.calendar not in ["standard", "proleptic_gregorian"]:
+                messages.append(
+                    f"Your 'calendar' attribute is not one of the recommended calendars ('standard', 'proleptic_gregorian'): '{self.calendar}'."
+                )
+                if self.calendar == "gregorian":
+                    msg = " Please use the 'standard' calendar, since the use of the 'gregorian' calendar is deprecated since CF-1.9."
+                else:
+                    msg = " The use of another calendar is OK in case it has been inherited from the driving model."
+                messages[-1] = messages[-1] + msg
+            else:
+                score += 1
+        else:
+            score += 1
+
+        return self.make_result(level, score, out_of, desc, messages)
+
+    def check_time_units(self, ds):
+        """Checks if the time units are as requested."""
+        desc = "Time units (Archive Specifications)"
+        level = BaseCheck.HIGH
+        out_of = 1
+        score = 0
+        messages = []
+
+        if self.time is not None:
+            if self.timeunits not in [
+                "days since 1950-01-01T00:00:00Z",
+                "days since 1850-01-01T00:00:00Z",
+            ]:
+                messages.append(
+                    f"Your time axis' 'units' attribute differs from the allowed values ('days since 1950-01-01T00:00:00Z', 'days since 1850-01-01T00:00:00Z' if the pre-1950 era is included in the group's simulations.): '{self.timeunits}'."
+                )
+            else:
+                score += 1
+        else:
+            score += 1
+
+        return self.make_result(level, score, out_of, desc, messages)
+
+    def check_version_realization_info(self, ds):
+        """Checks if version_realization_info is defined as recommended."""
+        desc = "version_realization_info (Archive Specifications)"
+        level = BaseCheck.MEDIUM
+        out_of = 1
+        score = 0
+        messages = []
+
+        if (
+            any(
+                [
+                    x != "v1-r1"
+                    for x in [
+                        self.drs_fn["version_realization"],
+                        self.drs_dir["version_realization"],
+                        self.drs_gatts["version_realization"],
+                    ]
+                ]
+            )
+            and self._get_attr("version_realization_info", default="") == ""
+        ):
+            messages.append(
+                "The global attribute 'version_realization_info' is missing. It is however recommended, if 'version_realization' deviates from 'v1-r1'. The attribute 'version_realization_info' provides information on how reruns (eg. v2, v3) and/or realizations (eg. r2, r3) are generated."
+            )
+        else:
+            score += 1
+
+        return self.make_result(level, score, out_of, desc, messages)
+
+    def check_driving_attributes(self, ds):
+        """Checks if all driving attributes are defined as required."""
+        desc = "Driving attributes (Archive Specifications)"
+        level = BaseCheck.HIGH
+        out_of = 3
+        score = 0
+        messages = []
+
+        dei = self._get_attr("driving_experiment_id", False)
+        dvl = self._get_attr("driving_variant_label", False)
+        dsi = self._get_attr("driving_source_id", False)
+
+        if dvl and dvl == "r0i0p0f0":
+            messages.append(
+                f"The global attribute 'driving_variant_label' is not compliant with the archive specifications ('r1i1p1f1' is the minimum 'driving_variant_label'): '{dvl}'."
+            )
+        else:
+            score += 1
+
+        if dei and dei == "evaluation":
+            if dvl and dvl != "r1i1p1f1":
+                messages.append(
+                    f"The global attribute 'driving_variant_label' is not compliant with the archive specifications ('r1i1p1f1'): '{dei}'."
+                )
+            else:
+                score += 1
+            if dsi and dsi != "ERA5":
+                messages.append(
+                    f"The global attribute 'driving_source_id' is not compliant with the archive specifications ('ERA5'): '{dei}'."
+                )
+            else:
+                score += 1
+        else:
+            score += 2
 
         return self.make_result(level, score, out_of, desc, messages)
