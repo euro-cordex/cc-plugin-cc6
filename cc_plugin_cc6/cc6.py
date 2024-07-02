@@ -52,6 +52,18 @@ class CORDEXCMIP6(MIPCVCheck):
 
             self._initialize_CV_info(tables_path)
             self._initialize_time_info()
+            self._initialize_coords_info()
+
+            # Specify the global attributes that will be checked by a specific check
+            #  rather than a general check against the value given in the CV
+            #  (i.e. because it does not explicitly defined in the CV)
+            self.global_attrs_hard_checks = [
+                "variable_id",
+                "time_range",
+                "version",
+                "source",
+                "domain_id",
+            ]
 
     def check_format(self, ds):
         """Checks if the file is in the expected format."""
@@ -401,5 +413,53 @@ class CORDEXCMIP6(MIPCVCheck):
                 score += 1
         else:
             score += 2
+
+        return self.make_result(level, score, out_of, desc, messages)
+
+    def check_domain_id(self, ds):
+        """Checks if the domain_id is compliant with the archive specifications."""
+        desc = "domain_id (CV)"
+        level = BaseCheck.MEDIUM
+        out_of = 2
+        score = 0
+        messages = []
+
+        # Get domain_id from global attributes
+        domain_id = self._get_attr("domain_id", default=False)
+
+        # Do not give a result if not defined
+        if not domain_id:
+            return self.make_result(level, out_of, out_of, desc, messages)
+
+        # If the grid is rectilinear, the domain_id needs to include the suffix "i"
+        try:
+            lat = self.xrds.cf.coordinates["latitude"][0]
+            lon = self.xrds.cf.coordinates["longitude"][0]
+        except KeyError:
+            messages.append(
+                "Cannot check 'domain_id' as latitude and longitude coordinate variables could not be identified."
+            )
+            return self.make_result(level, score, out_of, desc, messages)
+
+        # Rectilinear case: lat and lon must be 1D
+        #  (would also be the case for unstructured grids, but those are not allowed in CORDEX-CMIP6)
+        if self.xrds[lat].ndim == 1 and self.xrds[lon].ndim == 1:
+            if not domain_id.endswith("i"):
+                messages.append(
+                    f"The global attribute 'domain_id' is not compliant with the archive specifications ('domain_id' should get the suffix 'i' in case of a rectilinear grid): '{domain_id}'."
+                )
+            else:
+                score += 1
+                domain_id = domain_id[:-1]
+        else:
+            score += 1
+
+        # Check if domain_id is in the CV
+        if domain_id not in self.CV["domain_id"]:
+            messages.append(
+                f"The global attribute 'domain_id' is not compliant with the CV: '{domain_id}'."
+            )
+        else:
+            score += 1
 
         return self.make_result(level, score, out_of, desc, messages)

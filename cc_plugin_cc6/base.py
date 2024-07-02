@@ -34,12 +34,20 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
         self.filepath = os.path.realpath(
             os.path.normpath(os.path.expanduser(self.dataset.filepath()))
         )
-        self.xrds = xr.open_dataset(self.filepath, decode_times=False)
+        self.xrds = xr.open_dataset(
+            self.filepath, decode_coords=True, decode_times=False
+        )
         # Get path to the tables
         if self.inputs.get("tables", False):
             tables_path = self.inputs["tables"]
             self._initialize_CV_info(tables_path)
             self._initialize_time_info()
+            self._initialize_coords_info()
+
+        # Specify the global attributes that will be checked by a specific check
+        #  rather than a general check against the value given in the CV
+        #  (i.e. because it does not explicitly defined in the CV)
+        self.global_attrs_hard_checks = ["variable_id", "time_range", "version"]
 
     def _initialize_CV_info(self, tables_path):
         """Find and read CV and CMOR tables and extract basic information."""
@@ -62,9 +70,9 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
             )
         # Read CV and coordinate tables
         self.CV = self._read_CV(tables_path, table_prefix, "CV")["CV"]
-        self.coords = self._read_CV(tables_path, table_prefix, "coordinate")
-        self.grids = self._read_CV(tables_path, table_prefix, "grids")
-        self.formulas = self._read_CV(tables_path, table_prefix, "formula_terms")
+        self.CTcoords = self._read_CV(tables_path, table_prefix, "coordinate")
+        self.CTgrids = self._read_CV(tables_path, table_prefix, "grids")
+        self.CTformulas = self._read_CV(tables_path, table_prefix, "formula_terms")
         # Read variable tables (variable tables)
         self.CT = {}
         for table in table_names:
@@ -138,6 +146,49 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
             self.timeunits = None
             self.timebnds = None
             self.timedec = None
+
+    def _initialize_coords_info(self):
+        """Get information about the infile coordinates."""
+        # Compile list of coordinates from coords, axes and formula_terms
+        #  also check for redundant bounds / coordinates
+        self.coords = []
+        self.bounds = set()
+        self.coords_redundant = dict()
+        self.bounds_redundant = dict()
+        for bkey, bval in self.xrds.cf.bounds.items():
+            if len(bval) > 1:
+                self.bounds_redundant[bkey] = bval
+            self.bounds.update(bval)
+        # ds.cf.coordinates
+        # {'longitude': ['lon'], 'latitude': ['lat'], 'vertical': ['height'], 'time': ['time']}
+        for ckey, clist in self.xrds.cf.coordinates.items():
+            _clist = [c for c in clist if c not in self.bounds]
+            if len(_clist) > 1:
+                self.coords_redundant[ckey] = _clist
+            if _clist[0] not in self.coords:
+                self.coords.append(_clist[0])
+        # ds.cf.axes
+        # {'X': ['rlon'], 'Y': ['rlat'], 'Z': ['height'], 'T': ['time']}
+        for ckey, clist in self.xrds.cf.axes.items():
+            if len(clist) > 1:
+                if ckey not in self.coords_redundant:
+                    self.coords_redundant[ckey] = clist
+            if clist[0] not in self.coords:
+                self.coords.append(clist[0])
+        # ds.cf.formula_terms
+        # {"lev": {"a":"ab", "ps": "ps",...}}
+        for akey in self.xrds.cf.formula_terms.keys():
+            for ckey, cval in self.xrds.cf.formula_terms[akey].items():
+                if cval not in self.coords:
+                    self.coords.append(cval)
+
+        # Get the external variables
+        self.external_variables = self._get_attr("external_variables", "").split()
+
+        # Update list of variables
+        self.varname = [
+            v for v in self.varname if v not in self.coords and v not in self.bounds
+        ]
 
     def _get_attr(self, attr, default="unknown"):
         """Get nc attribute."""
@@ -359,7 +410,13 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
             messages.extend(drs_fn_messages)
 
         # Unchecked DRS path building blocks
-        unchecked = [key for key in self.drs_dir.keys() if not drs_dir_checked[key]]
+        print(drs_dir_checked)
+        print(self.global_attrs_hard_checks)
+        unchecked = [
+            key
+            for key in self.drs_dir.keys()
+            if not drs_dir_checked[key] and key not in self.global_attrs_hard_checks
+        ]
         if len(unchecked) == 0:
             score += 1
         else:
@@ -416,35 +473,47 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
         """Checks if all variables in the file are part of the CV."""
         desc = "Present variables"
         level = BaseCheck.HIGH
-        out_of = 1
+        out_of = 4
         score = 0
         messages = []
 
+        # Check number of requested variables in file
         if len(self.varname) > 1:
             messages.append(
-                f"More than one variable present in file: {', '.join(self.varname)}. Only the first one will be checked."
+                f"More than one requested variable found in file: {', '.join(self.varname)}. Only the first one will be checked."
             )
         elif len(self.varname) == 0:
             messages.append("No requested variable could be identified in the file.")
+        else:
+            score += 1
+
+        # Redundant coordinates /  bounds
+        if len(self.coords_redundant.keys()) > 0:
+            for key in self.coords_redundant.keys():
+                messages.append(
+                    f"Multiple coordinate variables found for '{key}': {', '.join(list(self.coords_redundant[key]))}"
+                )
+        else:
+            score += 1
+        if len(self.bounds_redundant.keys()) > 0:
+            for key in self.bounds_redundant.keys():
+                messages.append(
+                    f"Multiple bound variables found for '{key}': {', '.join(list(self.bounds_redundant[key]))}"
+                )
+        else:
+            score += 1
 
         # Create list of all CV coordinates, grids, formula_terms
         cvars = []
-        for entry in list(self.grids["axis_entry"].keys()):
-            cvars.append(self.grids["axis_entry"][entry]["out_name"])
-        for entry in list(self.grids["variable_entry"].keys()):
-            cvars.append(self.grids["variable_entry"][entry]["out_name"])
-        for entry in list(self.coords["axis_entry"].keys()):
-            cvars.append(self.coords["axis_entry"][entry]["out_name"])
-        for entry in list(self.formulas["formula_entry"].keys()):
-            cvars.append(self.formulas["formula_entry"][entry]["out_name"])
+        for entry in self.CTgrids["axis_entry"].keys():
+            cvars.append(self.CTgrids["axis_entry"][entry]["out_name"])
+        for entry in self.CTgrids["variable_entry"].keys():
+            cvars.append(self.CTgrids["variable_entry"][entry]["out_name"])
+        for entry in self.CTcoords["axis_entry"].keys():
+            cvars.append(self.CTcoords["axis_entry"][entry]["out_name"])
+        for entry in self.CTformulas["formula_entry"].keys():
+            cvars.append(self.CTformulas["formula_entry"][entry]["out_name"])
         cvars = set(cvars)
-        # Add bounds
-        bounds = []
-        for var in list(ds.variables.keys()):
-            if var in cvars:
-                bnd = getattr(ds.variables[var], "bounds", False)
-                if bnd:
-                    bounds.append(bnd)
         # Add grid_mapping
         if len(self.varname) > 0:
             crs = getattr(ds.variables[self.varname[0]], "grid_mapping", False)
@@ -452,8 +521,8 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
                 cvars |= {crs}
         # Identify unknown variables / coordinates
         unknown = []
-        for var in list(ds.variables.keys()):
-            if var not in cvars and var not in self.varname and var not in bounds:
+        for var in ds.variables.keys():
+            if var not in cvars and var not in self.varname and var not in self.bounds:
                 unknown.append(var)
         if len(unknown) > 0:
             messages.append(
