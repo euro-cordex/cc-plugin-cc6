@@ -216,7 +216,7 @@ class CORDEXCMIP6(MIPCVCheck):
 
         if len(messages) == 0:
             errmsg = (
-                f"{'Unless for the last file of a timeseries ' if nyears>1 else ''}'{nyears}' full simulation year{' is' if nyears==1 else 's are'} "
+                f"{'Apart from the last file of a timeseries ' if nyears>1 else ''}'{nyears}' full simulation year{' is' if nyears==1 else 's are'} "
                 f"expected in the data file for frequency '{self.frequency}'."
             )
             # Check if the first time is equal to the expected start date

@@ -5,11 +5,29 @@ from collections import ChainMap
 from pathlib import Path
 
 import cf_xarray  # noqa
+import cftime
 import numpy as np
 import xarray as xr
 from compliance_checker.base import BaseCheck, BaseNCCheck, Result
 
 from cc_plugin_cc6 import __version__
+
+from ._constants import deltdic
+
+get_tseconds = lambda t: t.total_seconds()  # noqa
+get_tseconds_vector = np.vectorize(get_tseconds)
+
+
+def printtimedelta(d):
+    """Return timedelta (s) as either min, hours, days, whatever fits best."""
+    if d > 86000:
+        return f"{d/86400.} days"
+    if d > 3500:
+        return f"{d/3600.} hours"
+    if d > 50:
+        return f"{d/60.} minutes"
+    else:
+        return f"{d} seconds"
 
 
 class MIPCVCheckBase(BaseCheck):
@@ -597,8 +615,64 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
 
         return self.make_result(level, score, out_of, desc, messages)
 
-    # def check_time_completeness(self):
-    #    pass
+    def check_time_continuity(self, ds):
+        """Checks if there are missing timesteps"""
+        desc = "Time continuity (within file)"
+        level = BaseCheck.HIGH
+        out_of = 1
+        score = 0
+        messages = []
+
+        # Check if frequency is known and supported
+        #  (as defined in deltdic)
+        if self.frequency in ["unknown", "fx"]:
+            return self.make_result(level, out_of, out_of, desc, messages)
+        if self.frequency not in deltdic.keys():
+            messages.append(f"Frequency '{self.frequency}' not supported.")
+            return self.make_result(level, score, out_of, desc, messages)
+
+        # Get the time dimension, calendar and units
+        if self.time is None:
+            messages.append("Coordinate variable 'time' not found in file.")
+            return self.make_result(level, score, out_of, desc, messages)
+        if self.calendar is None:
+            messages.append("'time' variable has no 'calendar' attribute.")
+        if self.timeunits is None:
+            messages.append("'time' variable has no 'units' attribute.")
+        if len(messages) > 0:
+            return self.make_result(level, score, out_of, desc, messages)
+
+        if self.time.size == 0:
+            # Empty time axis
+            messages.append(f"Time axis '{self.time}' has no entries.")
+            return self.make_result(level, score, out_of, desc, messages)
+        elif self.time.size == 1:
+            # No check necessary
+            return self.make_result(level, out_of, out_of, desc, messages)
+        else:
+            deltfs = cftime.num2date(
+                self.time.values[1:], units=self.timeunits, calendar=self.calendar
+            ) - cftime.num2date(
+                self.time.values[:-1], units=self.timeunits, calendar=self.calendar
+            )
+            deltfs = get_tseconds_vector(deltfs)
+            ta = np.ones(len(deltfs) + 1, np.float64)
+            ta[:-1] = deltfs[:]
+            ta[-1] = deltdic[self.frequency + "min"]
+            tb = xr.DataArray(data=ta, dims=["time"], coords=dict(time=self.time))
+            tc = xr.where(tb < deltdic[self.frequency + "min"], 1, 0)
+            te = xr.where(tb > deltdic[self.frequency + "max"], 1, 0)
+            tf = tc + te
+            tg = tb.time.where(tf > 0, drop=True)
+            th = tb.where(tf > 0, drop=True)
+            for tstep in range(0, th.size):
+                messages.append(
+                    f"Discontinuity in time axis (frequency: '{self.frequency}')  - {cftime.num2date(tg.values[tstep], calendar=self.calendar, units=self.units)} delta-t {printtimedelta(th.values[tstep])} from next timestep!"
+                )
+
+            if len(messages) == 0:
+                score += 1
+            return self.make_result(level, score, out_of, desc, messages)
 
     # def check_time_range(self):
-    #    pass
+    #   pass
