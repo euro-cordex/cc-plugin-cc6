@@ -32,7 +32,7 @@ classifiers = [
 dependencies = [
   "cftime",
   "cf_xarray",
-  #"compliance-checker",
+  # "compliance-checker",
   "compliance-checker @ git+https://github.com/sol1105/compliance-checker.git@inputoptions",
   "netCDF4",
   "pandas",
