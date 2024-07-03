@@ -3,6 +3,7 @@ import re
 import pytest
 from _commons import FXOROG_REMO, TAS_REMO
 from compliance_checker.suite import CheckSuite
+from importlib_metadata import entry_points
 
 from cc_plugin_cc6.cc6 import CORDEXCMIP6 as cc6
 
@@ -22,8 +23,11 @@ def test_cc6_basic(load_test_data):
 
 @pytest.mark.xfail
 def test_all_cc6_checks(load_test_data, cc6_checks):
+    # Initialize CheckSuite
     cs = CheckSuite()
-    cs._load_checkers([cc6])
+    ep = entry_points(group="compliance_checker.suites", name="cc6")
+    cs._load_checkers(ep)
+    # Load dataset
     ds = cs.load_dataset(TAS_REMO)
     # Run a single check
     res = cs.run_all(ds, ["cc6"], [cc6_checks])
