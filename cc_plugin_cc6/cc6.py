@@ -26,7 +26,7 @@ class CORDEXCMIP6(MIPCVCheck):
         if not self.inputs.get("tables", False):
             if self.debug:
                 print("Downloading CV and CMOR tables.")
-            tables_path = "~/.cc_metadata/cordex-cmip6-cmor-tables"
+            tables_path = "~/.cc6_metadata/cordex-cmip6-cmor-tables"
             for table in [
                 "coordinate",
                 "grids",
@@ -54,16 +54,16 @@ class CORDEXCMIP6(MIPCVCheck):
             self._initialize_time_info()
             self._initialize_coords_info()
 
-            # Specify the global attributes that will be checked by a specific check
-            #  rather than a general check against the value given in the CV
-            #  (i.e. because it does not explicitly defined in the CV)
-            self.global_attrs_hard_checks = [
-                "variable_id",
-                "time_range",
-                "version",
-                "source",
-                "domain_id",
-            ]
+        # Specify the global attributes that will be checked by a specific check
+        #  rather than a general check against the value given in the CV
+        #  (i.e. because it does not explicitly defined in the CV)
+        self.global_attrs_hard_checks = [
+            "variable_id",
+            "time_range",
+            "version",
+            "source",
+            "domain_id",
+        ]
 
     def check_format(self, ds):
         """Checks if the file is in the expected format."""
