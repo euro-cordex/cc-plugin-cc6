@@ -64,9 +64,9 @@ jobs:
         if: always()
         uses: pmeier/pytest-results-action@main
         with:
-          path: test-results/${{ runner.os }}-${{ matrix.python-version }}.xml
+          path: test-results/*-*.xml
           summary: true
-          display-options: "fEXP"
+          display-options: fEXP
           fail-on-empty: true
           title: Test results
       - name: Upload code coverage to Codecov
