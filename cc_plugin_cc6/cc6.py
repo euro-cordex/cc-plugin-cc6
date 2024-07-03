@@ -2,6 +2,7 @@ import os
 import re
 from datetime import timedelta
 
+import cf_xarray  # noqa
 import cftime
 from compliance_checker.base import BaseCheck
 

@@ -4,6 +4,7 @@ import re
 from collections import ChainMap
 from pathlib import Path
 
+import cf_xarray  # noqa
 import numpy as np
 import xarray as xr
 from compliance_checker.base import BaseCheck, BaseNCCheck, Result
