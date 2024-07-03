@@ -66,7 +66,7 @@ jobs:
         with:
           path: test-results/${{ runner.os }}-${{ matrix.python-version }}.xml
           summary: true
-          display-options: A
+          display-options: "fEXP"
           fail-on-empty: true
           title: Test results
       - name: Upload code coverage to Codecov
