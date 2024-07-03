@@ -57,9 +57,18 @@ jobs:
       - name: Run tests
         timeout-minutes: 5
         run: python -u -m pytest
-          --cov=cc_pluging_cc6
+          --cov=cc_plugin_cc6
           --cov-report=xml
           --junitxml=test-results/${{ runner.os }}-${{ matrix.python-version }}.xml
+      - name: Show test results
+        if: always()
+        uses: pmeier/pytest-results-action@main
+        with:
+          path: test-results/${{ runner.os }}-${{ matrix.python-version }}.xml
+          summary: true
+          display-options: A
+          fail-on-empty: true
+          title: Test results
       - name: Upload code coverage to Codecov
         uses: codecov/codecov-action@v4
         with:
