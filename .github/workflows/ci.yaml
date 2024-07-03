@@ -56,19 +56,10 @@ jobs:
           python -c "import cc_plugin_cc6"
       - name: Run tests
         timeout-minutes: 5
-        run: python -u -m pytest
+        run: python -u -m pytest -rA
           --cov=cc_plugin_cc6
           --cov-report=xml
           --junitxml=test-results/${{ runner.os }}-${{ matrix.python-version }}.xml
-      - name: Show test results
-        if: always()
-        uses: pmeier/pytest-results-action@main
-        with:
-          path: test-results/*-*.xml
-          summary: true
-          display-options: fEXP
-          fail-on-empty: true
-          title: Test results
       - name: Upload code coverage to Codecov
         uses: codecov/codecov-action@v4
         with:
