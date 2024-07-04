@@ -154,9 +154,10 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
         except KeyError:
             self.time = None
         if self.time is not None:
-            self.calendar = getattr(self.time, "calendar", None)
-            self.timeunits = getattr(self.time, "units", None)
-            self.timebnds = getattr(self.time, "bounds", None)
+            time_attrs = ChainMap(self.time.attrs, self.time.encoding)
+            self.calendar = time_attrs.get("calendar", None)
+            self.timeunits = time_attrs.get("units", None)
+            self.timebnds = time_attrs.get("bounds", None)
             self.timedec = xr.decode_cf(
                 self.xrds.copy(deep=True), decode_times=True, use_cftime=True
             ).cf["time"]
@@ -429,8 +430,6 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
             messages.extend(drs_fn_messages)
 
         # Unchecked DRS path building blocks
-        print(drs_dir_checked)
-        print(self.global_attrs_hard_checks)
         unchecked = [
             key
             for key in self.drs_dir.keys()
@@ -444,7 +443,11 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
             )
 
         # Unchecked DRS filename building blocks
-        unchecked = [key for key in self.drs_fn.keys() if not drs_fn_checked[key]]
+        unchecked = [
+            key
+            for key in self.drs_fn.keys()
+            if not drs_fn_checked[key] and key not in self.global_attrs_hard_checks
+        ]
         if len(unchecked) == 0:
             score += 1
         else:
@@ -644,7 +647,7 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
 
         if self.time.size == 0:
             # Empty time axis
-            messages.append(f"Time axis '{self.time}' has no entries.")
+            messages.append(f"Time axis '{self.time.name}' has no entries.")
             return self.make_result(level, score, out_of, desc, messages)
         elif self.time.size == 1:
             # No check necessary
@@ -667,12 +670,111 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
             th = tb.where(tf > 0, drop=True)
             for tstep in range(0, th.size):
                 messages.append(
-                    f"Discontinuity in time axis (frequency: '{self.frequency}')  - {cftime.num2date(tg.values[tstep], calendar=self.calendar, units=self.units)} delta-t {printtimedelta(th.values[tstep])} from next timestep!"
+                    f"Discontinuity in time axis (frequency: '{self.frequency}')  - {cftime.num2date(tg.values[tstep], calendar=self.calendar, units=self.timeunits)} delta-t {printtimedelta(th.values[tstep])} from next timestep!"
                 )
 
             if len(messages) == 0:
                 score += 1
             return self.make_result(level, score, out_of, desc, messages)
+
+    def check_time_bounds(self, ds):
+        """Checks time bounds for continuity"""
+        desc = "Time bounds continuity (within file)"
+        level = BaseCheck.HIGH
+        out_of = 3
+        score = 0
+        messages = []
+
+        # Check if frequency is known and supported
+        #  (as defined in deltdic)
+        if self.frequency in ["unknown", "fx"]:
+            return self.make_result(level, out_of, out_of, desc, messages)
+        if self.frequency not in deltdic.keys():
+            messages.append(f"Frequency '{self.frequency}' not supported.")
+            return self.make_result(level, score, out_of, desc, messages)
+        if self.cell_methods == "unknown":
+            if len(self.varname) > 0:
+                messages.append(
+                    "No 'cell_methods' attribute defined for '{self.varname[0]}'."
+                )
+            else:
+                messages.append("The 'cell_methods' are not specified.")
+        elif "time: point" in self.cell_methods:
+            return self.make_result(level, out_of, out_of, desc, messages)
+
+        # Get the time dimension, calendar and units
+        if self.time is None:
+            messages.append("Coordinate variable 'time' not found in file.")
+            return self.make_result(level, score, out_of, desc, messages)
+        if self.calendar is None:
+            messages.append("'time' variable has no 'calendar' attribute.")
+        if self.timeunits is None:
+            messages.append("'time' variable has no 'units' attribute.")
+        if len(messages) > 0:
+            return self.make_result(level, score, out_of, desc, messages)
+        if self.timebnds is None:
+            messages.append(
+                "No bounds could be identified for the time coordinate variable."
+            )
+            return self.make_result(level, score, out_of, desc, messages)
+
+        # Check time bounds dimensions
+        time_bnds = self.xrds[self.timebnds]
+        if self.time.dims[0] != time_bnds.dims[0]:
+            messages.append(
+                "The time coordinate variable and its bounds have a different first dimension."
+            )
+        elif self.time.size == 0:
+            messages.append(f"Time axis '{self.time.name}' has no entries.")
+        if len(time_bnds.dims) != 2 or time_bnds.sizes[time_bnds.dims[1]] != 2:
+            messages.append(
+                "The time bounds variable needs to be two dimensional with the second dimension being of size 2."
+            )
+        if len(messages) > 0:
+            return self.make_result(level, score, out_of, desc, messages)
+
+        # Check for overlapping bounds
+        if self.time.size == 1:
+            score += 1
+        else:
+            deltb = time_bnds[1:, 0].values - time_bnds[:-1, 1].values
+            overlap_idx = np.where(deltb != 0)[0]
+            if len(overlap_idx) == 0:
+                score += 1
+            else:
+                for oi in overlap_idx:
+                    messages.append(
+                        f"The time bounds overlap between index '{oi}' ('{cftime.num2date(self.time.values[oi], calendar=self.calendar, units=self.timeunits)}') and index '{oi+1}' ('{cftime.num2date(self.time.values[oi+1], calendar=self.calendar, units=self.timeunits)}')."
+                    )
+
+        # Check if time values are centered within their respective bounds
+        delt = (
+            self.time.values[:]
+            + self.time.values[:]
+            - time_bnds[:, 1]
+            - time_bnds[:, 0]
+        )
+        if np.all(delt == 0):
+            score += 1
+        else:
+            uncentered_idx = np.where(delt != 0)[0]
+            for ui in uncentered_idx:
+                messages.append(
+                    f"For timestep with index '{ui}' ()'{cftime.num2date(self.time.values[ui], calendar=self.calendar, units=self.timeunits)}'), the time value is not centered within its respective bounds."
+                )
+
+        # Check if time bounds are strong monotonically increasing
+        deltb = time_bnds[:, 1].values - time_bnds[:, 0].values
+        if np.all(deltb > 0):
+            score += 1
+        else:
+            nonmonotonic_idx = np.where(deltb <= 0)[0]
+            for ni in nonmonotonic_idx:
+                messages.append(
+                    f"The time bounds for timestep with index '{ni}' ('{cftime.num2date(self.time.values[ni], calendar=self.calendar, units=self.timeunits)}') are not strong monotonically increasing."
+                )
+
+        return self.make_result(level, score, out_of, desc, messages)
 
     # def check_time_range(self):
     #   pass
