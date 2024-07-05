@@ -502,7 +502,8 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
         # Check number of requested variables in file
         if len(self.varname) > 1:
             messages.append(
-                f"More than one requested variable found in file: {', '.join(self.varname)}. Only the first one will be checked."
+                "More than one requested variable found in file: "
+                f"{', '.join(self.varname)}. Only the first one will be checked."
             )
         elif len(self.varname) == 0:
             messages.append("No requested variable could be identified in the file.")
@@ -597,7 +598,8 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
             elif fval != mval:
                 score += 1
                 messages.append(
-                    f"The variable attributes '_FillValue' and 'missing_value' differ for variable '{self.varname[0]}': '{fval}' and '{mval}', respectively."
+                    f"The variable attributes '_FillValue' and 'missing_value' differ for variable "
+                    f"'{self.varname[0]}': '{fval}' and '{mval}', respectively."
                 )
             else:
                 score += 2
@@ -607,7 +609,8 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
                     and np.isclose(self.missing_value, mval)
                 ):
                     messages.append(
-                        f"The variable attributes '_FillValue' and/or 'missing_value' differ from the requested value ('{self.missing_value}'): '{fval}' and/or '{mval}', respectively."
+                        f"The variable attributes '_FillValue' and/or 'missing_value' differ from "
+                        f"the requested value ('{self.missing_value}'): '{fval}' and/or '{mval}', respectively."
                     )
                 else:
                     score += 1
@@ -670,7 +673,9 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
             th = tb.where(tf > 0, drop=True)
             for tstep in range(0, th.size):
                 messages.append(
-                    f"Discontinuity in time axis (frequency: '{self.frequency}')  - {cftime.num2date(tg.values[tstep], calendar=self.calendar, units=self.timeunits)} delta-t {printtimedelta(th.values[tstep])} from next timestep!"
+                    f"Discontinuity in time axis (frequency: '{self.frequency}')  - "
+                    f"{cftime.num2date(tg.values[tstep], calendar=self.calendar, units=self.timeunits)}"
+                    f" delta-t {printtimedelta(th.values[tstep])} from next timestep!"
                 )
 
             if len(messages) == 0:
@@ -744,7 +749,10 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
             else:
                 for oi in overlap_idx:
                     messages.append(
-                        f"The time bounds overlap between index '{oi}' ('{cftime.num2date(self.time.values[oi], calendar=self.calendar, units=self.timeunits)}') and index '{oi+1}' ('{cftime.num2date(self.time.values[oi+1], calendar=self.calendar, units=self.timeunits)}')."
+                        f"The time bounds overlap between index '{oi}' ('"
+                        f"{cftime.num2date(self.time.values[oi], calendar=self.calendar, units=self.timeunits)}"
+                        f"') and index '{oi+1}' ('"
+                        f"{cftime.num2date(self.time.values[oi+1], calendar=self.calendar, units=self.timeunits)}')."
                     )
 
         # Check if time values are centered within their respective bounds
@@ -760,7 +768,9 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
             uncentered_idx = np.where(delt != 0)[0]
             for ui in uncentered_idx:
                 messages.append(
-                    f"For timestep with index '{ui}' ()'{cftime.num2date(self.time.values[ui], calendar=self.calendar, units=self.timeunits)}'), the time value is not centered within its respective bounds."
+                    f"For timestep with index '{ui}' ('"
+                    f"{cftime.num2date(self.time.values[ui], calendar=self.calendar, units=self.timeunits)}"
+                    "'), the time value is not centered within its respective bounds."
                 )
 
         # Check if time bounds are strong monotonically increasing
@@ -771,10 +781,77 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
             nonmonotonic_idx = np.where(deltb <= 0)[0]
             for ni in nonmonotonic_idx:
                 messages.append(
-                    f"The time bounds for timestep with index '{ni}' ('{cftime.num2date(self.time.values[ni], calendar=self.calendar, units=self.timeunits)}') are not strong monotonically increasing."
+                    f"The time bounds for timestep with index '{ni}' "
+                    f"('{cftime.num2date(self.time.values[ni], calendar=self.calendar, units=self.timeunits)}"
+                    "') are not strong monotonically increasing."
                 )
 
         return self.make_result(level, score, out_of, desc, messages)
 
-    # def check_time_range(self):
-    #   pass
+    def check_time_range(self, ds):
+        """
+        Checks if the time_range element of the filename matches the time axis defined in the file.
+        """
+        desc = "Time range consistency"
+        level = BaseCheck.HIGH
+        out_of = 3
+        score = 0
+        messages = []
+
+        # This check only ensures, that if the data is not time invariant,
+        #   a time_range element is present in the filename and it is of format
+        #   <time_stamp_0>-<time_stamp_n>, with these time stamps being
+        #   a string representation (of equal length) of the first and last
+        #   time values, respectively.
+        # Another check against definitions in a DRS document / archive specification
+        #   document needs to be implemented, to ensure that the length of the
+        #   time_stamp strings matches the frequency.
+
+        # Check if frequency is identified and data is not time invariant
+        #  (as defined in deltdic)
+        if self.frequency in ["unknown", "fx"]:
+            return self.make_result(level, out_of, out_of, desc, messages)
+
+        # Check if time_range could be infered from filename
+        if not self.drs_fn["time_range"]:
+            messages.append("No 'time_range' element could be inferred from filename.")
+            return self.make_result(level, score, out_of, desc, messages)
+        else:
+            score += 1
+
+        # Check if time_range is of format <time_stamp_0>-<time_stamp_n>
+        time_range_arr = self.drs_fn["time_range"].split("-")
+        if len(time_range_arr) != 2 or len(time_range_arr[0]) != len(time_range_arr[1]):
+            messages.append(
+                "The 'time_range' element is not of format <time_stamp_0>-<time_stamp_n>."
+            )
+            return self.make_result(level, score, out_of, desc, messages)
+        else:
+            score += 1
+
+        # Get the time axis, calendar and units
+        if any([tm is None for tm in [self.time, self.calendar, self.timeunits]]):
+            # Check cannot be continued, but this error will be raised in another check
+            score += 1
+            return self.make_result(level, score, out_of, desc, messages)
+
+        # Check if the time_range element matches with the time values
+        format = "%4Y%2m%2d%2H%2M"
+        t0 = cftime.num2date(
+            self.time.values[0], calendar=self.calendar, units=self.timeunits
+        )
+        t1 = cftime.num2date(
+            self.time.values[-1], calendar=self.calendar, units=self.timeunits
+        )
+        time_range_str = (
+            f"{t0.strftime(format=format)[:len(time_range_arr[0])]}-"
+            f"{t1.strftime(format=format)[:len(time_range_arr[0])]}"
+        )
+        if self.drs_fn["time_range"] == time_range_str:
+            score += 1
+        else:
+            messages.append(
+                f"The 'time_range' element in the filename ('{self.drs_fn['time_range']}') "
+                f"does not match with the first and last time values: '{t0}' and '{t1}'."
+            )
+        return self.make_result(level, score, out_of, desc, messages)
