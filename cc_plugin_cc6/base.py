@@ -16,6 +16,8 @@ from ._constants import deltdic
 
 get_tseconds = lambda t: t.total_seconds()  # noqa
 get_tseconds_vector = np.vectorize(get_tseconds)
+get_abs_tseconds = lambda t: abs(t.total_seconds())  # noqa
+get_abs_tseconds_vector = np.vectorize(get_abs_tseconds)
 
 
 def printtimedelta(d):
@@ -671,10 +673,16 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
             tf = tc + te
             tg = tb.time.where(tf > 0, drop=True)
             th = tb.where(tf > 0, drop=True)
+            tindex = xr.DataArray(
+                data=range(0, len(self.time)),
+                dims=["time"],
+                coords=dict(time=self.time),
+            )
+            tindex_f = tindex.where(tf > 0, drop=True)
             for tstep in range(0, th.size):
                 messages.append(
-                    f"Discontinuity in time axis (frequency: '{self.frequency}')  - "
-                    f"{cftime.num2date(tg.values[tstep], calendar=self.calendar, units=self.timeunits)}"
+                    f"Discontinuity in time axis (frequency: '{self.frequency}') at index '{tindex_f[tstep]}'"
+                    f" ('{cftime.num2date(tg.values[tstep], calendar=self.calendar, units=self.timeunits)}'):"
                     f" delta-t {printtimedelta(th.values[tstep])} from next timestep!"
                 )
 
@@ -686,7 +694,7 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
         """Checks time bounds for continuity"""
         desc = "Time bounds continuity (within file)"
         level = BaseCheck.HIGH
-        out_of = 3
+        out_of = 4
         score = 0
         messages = []
 
@@ -785,6 +793,34 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
                     f"('{cftime.num2date(self.time.values[ni], calendar=self.calendar, units=self.timeunits)}"
                     "') are not strong monotonically increasing."
                 )
+
+        # Check if time interval is as expected
+        deltfs = cftime.num2date(
+            time_bnds.values[:, 1], units=self.timeunits, calendar=self.calendar
+        ) - cftime.num2date(
+            time_bnds.values[:, 0], units=self.timeunits, calendar=self.calendar
+        )
+        deltfs = get_tseconds_vector(deltfs)
+        ti = xr.DataArray(data=deltfs, dims=["time"], coords=dict(time=self.time))
+        ti_l = xr.where(ti < deltdic[self.frequency + "min"], 1, 0)
+        ti_h = xr.where(ti > deltdic[self.frequency + "max"], 1, 0)
+        ti_lh = ti_l + ti_h
+        ti_t = ti.time.where(ti_lh > 0, drop=True)
+        ti_f = ti.where(ti_lh > 0, drop=True)
+        tindex = xr.DataArray(
+            data=range(0, len(self.time)), dims=["time"], coords=dict(time=self.time)
+        )
+        tindex_f = tindex.where(ti_lh > 0, drop=True)
+        failure = False
+        for tstep in range(0, ti_f.size):
+            failure = True
+            messages.append(
+                f"Discontinuity in time bounds (frequency: '{self.frequency}') at index '{int(tindex_f.values[tstep])}"
+                f"' ('{cftime.num2date(ti_t.values[tstep], calendar=self.calendar, units=self.timeunits)}'):"
+                f" time interval is of size '{printtimedelta(ti_f.values[tstep])}'!"
+            )
+        if not failure:
+            score += 1
 
         return self.make_result(level, score, out_of, desc, messages)
 
