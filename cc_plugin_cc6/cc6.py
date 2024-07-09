@@ -59,11 +59,14 @@ class CORDEXCMIP6(MIPCVCheck):
         #  rather than a general check against the value given in the CV
         #  (i.e. because it does not explicitly defined in the CV)
         self.global_attrs_hard_checks = [
-            "variable_id",
-            "time_range",
-            "version",
-            "source",
+            "contact",
+            "creation_date",
             "domain_id",
+            "grid",
+            "institution",
+            "time_range",
+            "variable_id",
+            "version",
         ]
 
     def check_format(self, ds):
@@ -84,7 +87,8 @@ class CORDEXCMIP6(MIPCVCheck):
             or ds.data_model != data_model_expected
         ):
             messages.append(
-                f"File format differs from expectation ({data_model_expected}/{disk_format_expected}): '{ds.data_model}/{ds.disk_format}'."
+                f"File format differs from expectation ({data_model_expected}/{disk_format_expected}): "
+                f"'{ds.data_model}/{ds.disk_format}'."
             )
         else:
             score += 1
@@ -110,13 +114,15 @@ class CORDEXCMIP6(MIPCVCheck):
             or ds[varname].filters()["shuffle"] is False
         ):
             messages.append(
-                "It is recommended that data should be compressed with a 'deflate level' of '1' and enabled 'shuffle' option."
+                "It is recommended that data should be compressed with a 'deflate level' of '1' "
+                "and enabled 'shuffle' option."
             )
             if ds[varname].filters()["complevel"] < 1:
                 messages.append(" The data is uncompressed.")
             elif ds[varname].filters()["complevel"] > 1:
                 messages.append(
-                    " The data is compressed with a higher 'deflate level' than recommended, this can lead to performance issues when accessing the data."
+                    " The data is compressed with a higher 'deflate level' than recommended, "
+                    "this can lead to performance issues when accessing the data."
                 )
             if ds[varname].filters()["shuffle"] is False:
                 messages.append(" The 'shuffle' option is disabled.")
@@ -216,7 +222,8 @@ class CORDEXCMIP6(MIPCVCheck):
 
         if len(messages) == 0:
             errmsg = (
-                f"{'Apart from the last file of a timeseries ' if nyears>1 else ''}'{nyears}' full simulation year{' is' if nyears==1 else 's are'} "
+                f"{'Apart from the last file of a timeseries ' if nyears>1 else ''}'{nyears}' "
+                f"full simulation year{' is' if nyears==1 else 's are'} "
                 f"expected in the data file for frequency '{self.frequency}'."
             )
             # Check if the first time is equal to the expected start date
@@ -295,7 +302,8 @@ class CORDEXCMIP6(MIPCVCheck):
         # Check if the time_range is as expected
         if self.drs_fn["time_range"] != time_range:
             messages.append(
-                f"Expected time_range '{time_range}' but found '{self.drs_fn['time_range'] if self.drs_fn['time_range'] else 'unset'}'."
+                f"Expected time_range '{time_range}' but found '"
+                f"{self.drs_fn['time_range'] if self.drs_fn['time_range'] else 'unset'}'."
             )
         if len(messages) == 0:
             score += 1
@@ -314,10 +322,14 @@ class CORDEXCMIP6(MIPCVCheck):
         if self.time is not None:
             if self.calendar not in ["standard", "proleptic_gregorian"]:
                 messages.append(
-                    f"Your 'calendar' attribute is not one of the recommended calendars ('standard', 'proleptic_gregorian'): '{self.calendar}'."
+                    "Your 'calendar' attribute is not one of the recommended calendars "
+                    f"('standard', 'proleptic_gregorian'): '{self.calendar}'."
                 )
                 if self.calendar == "gregorian":
-                    msg = " Please use the 'standard' calendar, since the use of the 'gregorian' calendar is deprecated since CF-1.9."
+                    msg = (
+                        " Please use the 'standard' calendar, since the use of the 'gregorian' "
+                        "calendar is deprecated since CF-1.9."
+                    )
                 else:
                     msg = " The use of another calendar is OK in case it has been inherited from the driving model."
                 messages[-1] = messages[-1] + msg
@@ -342,10 +354,31 @@ class CORDEXCMIP6(MIPCVCheck):
                 "days since 1850-01-01T00:00:00Z",
             ]:
                 messages.append(
-                    f"Your time axis' 'units' attribute differs from the allowed values ('days since 1950-01-01T00:00:00Z', 'days since 1850-01-01T00:00:00Z' if the pre-1950 era is included in the group's simulations.): '{self.timeunits}'."
+                    "Your time axis' 'units' attribute differs from the allowed values "
+                    "('days since 1950-01-01T00:00:00Z', 'days since 1850-01-01T00:00:00Z' "
+                    f"if the pre-1950 era is included in the group's simulations): '{self.timeunits}'."
                 )
             else:
                 score += 1
+        else:
+            score += 1
+
+        return self.make_result(level, score, out_of, desc, messages)
+
+    def check_references(self, ds):
+        """Checks if references is defined as recommended."""
+        desc = "references (Archive Specifications)"
+        level = BaseCheck.MEDIUM
+        out_of = 1
+        score = 0
+        messages = []
+
+        if "references" not in self.xrds.attrs or self.xrds.attrs["references"] == "":
+            messages.append(
+                "The global attribute 'references' is not specified. It is however recommended. "
+                "The attribute 'references' should include published or web-based references that describe "
+                "the data, model or methods used."
+            )
         else:
             score += 1
 
@@ -373,7 +406,9 @@ class CORDEXCMIP6(MIPCVCheck):
             and self._get_attr("version_realization_info", default="") == ""
         ):
             messages.append(
-                "The global attribute 'version_realization_info' is missing. It is however recommended, if 'version_realization' deviates from 'v1-r1'. The attribute 'version_realization_info' provides information on how reruns (eg. v2, v3) and/or realizations (eg. r2, r3) are generated."
+                "The global attribute 'version_realization_info' is missing. It is however recommended, "
+                "if 'version_realization' deviates from 'v1-r1'. The attribute 'version_realization_info' "
+                "provides information on how reruns (eg. v2, v3) and/or realizations (eg. r2, r3) are generated."
             )
         else:
             score += 1
@@ -394,7 +429,8 @@ class CORDEXCMIP6(MIPCVCheck):
 
         if dvl and dvl == "r0i0p0f0":
             messages.append(
-                f"The global attribute 'driving_variant_label' is not compliant with the archive specifications ('r1i1p1f1' is the minimum 'driving_variant_label'): '{dvl}'."
+                "The global attribute 'driving_variant_label' is not compliant with the archive specifications "
+                f"('r1i1p1f1' is the minimum 'driving_variant_label'): '{dvl}'."
             )
         else:
             score += 1
@@ -402,13 +438,15 @@ class CORDEXCMIP6(MIPCVCheck):
         if dei and dei == "evaluation":
             if dvl and dvl != "r1i1p1f1":
                 messages.append(
-                    f"The global attribute 'driving_variant_label' is not compliant with the archive specifications ('r1i1p1f1'): '{dei}'."
+                    "The global attribute 'driving_variant_label' is not compliant with the archive specifications "
+                    f"('r1i1p1f1'): '{dei}'."
                 )
             else:
                 score += 1
             if dsi and dsi != "ERA5":
                 messages.append(
-                    f"The global attribute 'driving_source_id' is not compliant with the archive specifications ('ERA5'): '{dei}'."
+                    "The global attribute 'driving_source_id' is not compliant with the archive specifications "
+                    f"('ERA5'): '{dei}'."
                 )
             else:
                 score += 1
@@ -420,7 +458,7 @@ class CORDEXCMIP6(MIPCVCheck):
     def check_domain_id(self, ds):
         """Checks if the domain_id is compliant with the archive specifications."""
         desc = "domain_id (CV)"
-        level = BaseCheck.MEDIUM
+        level = BaseCheck.HIGH
         out_of = 2
         score = 0
         messages = []
@@ -447,7 +485,8 @@ class CORDEXCMIP6(MIPCVCheck):
         if self.xrds[lat].ndim == 1 and self.xrds[lon].ndim == 1:
             if not domain_id.endswith("i"):
                 messages.append(
-                    f"The global attribute 'domain_id' is not compliant with the archive specifications ('domain_id' should get the suffix 'i' in case of a rectilinear grid): '{domain_id}'."
+                    "The global attribute 'domain_id' is not compliant with the archive specifications "
+                    f"('domain_id' should get the suffix 'i' in case of a rectilinear grid): '{domain_id}'."
                 )
             else:
                 score += 1
@@ -459,6 +498,37 @@ class CORDEXCMIP6(MIPCVCheck):
         if domain_id not in self.CV["domain_id"]:
             messages.append(
                 f"The global attribute 'domain_id' is not compliant with the CV: '{domain_id}'."
+            )
+        else:
+            score += 1
+
+        return self.make_result(level, score, out_of, desc, messages)
+
+    def check_institution(self, ds):
+        """Checks if the institution is compliant with the CV."""
+        desc = "institution (CV)"
+        level = BaseCheck.HIGH
+        out_of = 1
+        score = 0
+        messages = []
+
+        # Get institution from global attributes
+        institution = self._get_attr("institution", default=False)
+        institution_id = self._get_attr("institution_id", default=False)
+
+        # If check cannot be conducted, rely on base checks
+        if (
+            not institution_id
+            or not institution
+            or institution_id not in self.CV["institution_id"]
+        ):
+            return self.make_result(level, out_of, out_of, desc, messages)
+
+        # Check institution against CV
+        if institution != self.CV["institution_id"][institution_id]:
+            messages.append(
+                f"The global attribute 'institution' is not compliant with the CV:"
+                f" '{institution}' instead of '{self.CV['institution_id'][institution_id]}'."
             )
         else:
             score += 1
