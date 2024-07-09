@@ -2,6 +2,7 @@ import json
 import os
 import re
 from collections import ChainMap
+from datetime import datetime as dt
 from pathlib import Path
 
 import cf_xarray  # noqa
@@ -68,7 +69,12 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
         # Specify the global attributes that will be checked by a specific check
         #  rather than a general check against the value given in the CV
         #  (i.e. because it does not explicitly defined in the CV)
-        self.global_attrs_hard_checks = ["variable_id", "time_range", "version"]
+        self.global_attrs_hard_checks = [
+            "creation_date",
+            "time_range",
+            "variable_id",
+            "version",
+        ]
 
     def _initialize_CV_info(self, tables_path):
         """Find and read CV and CMOR tables and extract basic information."""
@@ -560,7 +566,7 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
 
     def check_required_global_attributes(self, ds):
         """Checks presence of mandatory global attributes."""
-        desc = "Required global attributes."
+        desc = "Required global attributes (Presence)"
         level = BaseCheck.HIGH
         score = 0
         messages = []
@@ -574,6 +580,44 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
             score += int(test)
             if not test:
                 messages.append(f"Required global attribute '{attr}' is missing.")
+
+        return self.make_result(level, score, out_of, desc, messages)
+
+    def check_required_global_attributes_CV(self, ds):
+        """Global attributes checked against CV."""
+        desc = "Required global attributes (CV)"
+        level = BaseCheck.HIGH
+        score = 0
+        out_of = 2
+        messages = []
+
+        required_attributes = self.CV.get("required_global_attributes", {})
+        file_attrs = {
+            k: v for k, v in self.xrds.attrs.items() if k in required_attributes
+        }
+        for k in required_attributes:
+            if k not in file_attrs:
+                file_attrs[k] = "unset"
+
+        # Global attributes
+        ga_checked, ga_messages = self._compare_CV(file_attrs, "Global attribute ")
+        if len(ga_messages) == 0:
+            score += 1
+        else:
+            messages.extend(ga_messages)
+
+        # Unchecked global attributes
+        unchecked = [
+            key
+            for key in required_attributes
+            if not ga_checked[key] and key not in self.global_attrs_hard_checks
+        ]
+        if len(unchecked) == 0:
+            score += 1
+        else:
+            messages.append(
+                f"""Required global attributes could not be checked against CV: {', '.join(f"'{ukey}'" for ukey in unchecked)}."""
+            )
 
         return self.make_result(level, score, out_of, desc, messages)
 
@@ -890,4 +934,62 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
                 f"The 'time_range' element in the filename ('{self.drs_fn['time_range']}') "
                 f"does not match with the first and last time values: '{t0}' and '{t1}'."
             )
+        return self.make_result(level, score, out_of, desc, messages)
+
+    def check_version_date(self, ds):
+        """Checks if the version_date is properly defined."""
+        desc = "version_date (CMOR)"
+        level = BaseCheck.HIGH
+        out_of = 1
+        score = 0
+        messages = []
+
+        # Check version/version_date in DRS path (format vYYYYMMDD, not in the future)
+        if self.drs_dir["version"]:
+            if not re.fullmatch(r"^[0-9]*\.[0-9]*$", self.drs_dir["version"]):
+                messages.append(
+                    "The 'version' element in the path is not of the format 'vYYYYMMDD'."
+                )
+            elif dt.strptime(self.drs_dir["version"][1:], "%Y%m%d") > dt.now():
+                messages.append(
+                    f"The 'version' element in the path is in the future:"
+                    f" '{self.drs_dir['version'][1:5]}-{self.drs_dir['version'][5:7]}"
+                    f"-{self.drs_dir['version'][7:9]}.'"
+                )
+            else:
+                score += 1
+        else:
+            score += 1
+
+        return self.make_result(level, score, out_of, desc, messages)
+
+    def check_creation_date(self, ds):
+        """Checks if the creation_date is compliant to the archive specifications."""
+        desc = "creation_date (CMOR)"
+        level = BaseCheck.HIGH
+        out_of = 1
+        score = 0
+        messages = []
+
+        # Check global attribute creation_date (format YYYY-MM-DDTHH:MM:SSZ, not in the future)
+        if "creation_date" in self.xrds.attrs:
+            if not re.fullmatch(
+                r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$",
+                self.xrds.attrs["creation_date"],
+            ):
+                messages.append(
+                    f"The 'creation_date' attribute is not of the format 'YYYY-MM-DDTHH:MM:SSZ': '{self.xrds.attrs['creation_date']}'"
+                )
+            elif (
+                dt.strptime(self.xrds.attrs["creation_date"], "%Y-%m-%dT%H:%M:%SZ")
+                > dt.now()
+            ):
+                messages.append(
+                    f"The 'creation_date' attribute is in the future: '{self.xrds.attrs['creation_date']}'"
+                )
+            else:
+                score += 1
+        else:
+            score += 1
+
         return self.make_result(level, score, out_of, desc, messages)
