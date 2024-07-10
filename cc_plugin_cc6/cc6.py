@@ -256,6 +256,7 @@ class CORDEXCMIP6(MIPCVCheck):
         #  CORDEX-CMIP6: fx, 1hr, day, mon
         #  deltdic.keys() - whatever frequencies are defined there
         if self.frequency in ["unknown", "fx"]:
+            # Potential error would be raised in base check
             return self.make_result(level, out_of, out_of, desc, messages)
         if self.frequency not in deltdic.keys() or self.frequency not in [
             "1hr",

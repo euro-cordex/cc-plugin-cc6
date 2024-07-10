@@ -887,9 +887,19 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
         #   document needs to be implemented, to ensure that the length of the
         #   time_stamp strings matches the frequency.
 
+        # If time_range is not part of the file name structure, abort
+        if "time_range" not in self.drs_fn:
+            return self.make_result(level, out_of, out_of, desc, messages)
+
         # Check if frequency is identified and data is not time invariant
         #  (as defined in deltdic)
         if self.frequency in ["unknown", "fx"]:
+            if self.frequency == "fx" and self.drs_fn["time_range"] is False:
+                messages.append(
+                    "Expected no 'time_range' element in filename for "
+                    f"frequency 'fx', but found: '{self.drs_fn['time_range']}'."
+                )
+                return self.make_result(level, score, out_of, desc, messages)
             return self.make_result(level, out_of, out_of, desc, messages)
 
         # Check if time_range could be infered from filename
