@@ -50,25 +50,31 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
         return Result(level, (score, out_of), name, messages)
 
     def setup(self, dataset):
-        self.debug = True
+        # netCDF4.Dataset
         self.dataset = dataset
-        self.options = self.options
+        # Get path to the dataset
         self.filepath = os.path.realpath(
             os.path.normpath(os.path.expanduser(self.dataset.filepath()))
         )
+        # xarray.Dataset
         self.xrds = xr.open_dataset(
             self.filepath, decode_coords=True, decode_times=False
         )
-        # Get path to the tables
+        # Options
+        self.options = self.options
+        if "debug" in self.options:
+            self.debug = True
+        else:
+            self.debug = False
+        # Input options - Get path to the tables and initialize
         if self.inputs.get("tables", False):
             tables_path = self.inputs["tables"]
             self._initialize_CV_info(tables_path)
             self._initialize_time_info()
             self._initialize_coords_info()
-
         # Specify the global attributes that will be checked by a specific check
         #  rather than a general check against the value given in the CV
-        #  (i.e. because it does not explicitly defined in the CV)
+        #  (i.e. because it is not explicitly defined in the CV)
         self.global_attrs_hard_checks = [
             "creation_date",
             "time_range",
@@ -274,7 +280,7 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
                 print(val, "->0")
             return bool(re.fullmatch(el, str(val), flags=re.ASCII)), []
         # 1 and 2 #
-        elif isinstance(el, type(list())):
+        elif isinstance(el, list):
             if self.debug:
                 print(val, "->1 and 2")
             if val not in el:
@@ -290,7 +296,7 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
             else:
                 return True, []
         # 3 to 6 #
-        elif isinstance(el, type(dict())):
+        elif isinstance(el, dict):
             if self.debug:
                 print(val, "->3 to 6")
             if val in el.keys():
@@ -300,7 +306,7 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
                         print(val, "->3")
                     return True, []
                 # 4 to 6 #
-                elif isinstance(el[val], type(dict())):
+                elif isinstance(el[val], dict):
                     if self.debug:
                         print(val, "->4 to 6")
                     return True, list(el[val].keys())
@@ -956,9 +962,10 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
 
         # Check version/version_date in DRS path (format vYYYYMMDD, not in the future)
         if self.drs_dir["version"]:
-            if not re.fullmatch(r"^[0-9]*\.[0-9]*$", self.drs_dir["version"]):
+            if not re.fullmatch(r"^v[0-9]{8}$", self.drs_dir["version"]):
                 messages.append(
-                    "The 'version' element in the path is not of the format 'vYYYYMMDD'."
+                    "The 'version' element in the path is not of the format 'vYYYYMMDD':"
+                    f" '{self.drs_dir['version']}'."
                 )
             elif dt.strptime(self.drs_dir["version"][1:], "%Y%m%d") > dt.now():
                 messages.append(
