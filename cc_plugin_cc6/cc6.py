@@ -415,6 +415,33 @@ class CORDEXCMIP6(MIPCVCheck):
 
         return self.make_result(level, score, out_of, desc, messages)
 
+    def check_grid_desc(self, ds):
+        """Checks if the global attribute grid is defined as recommended."""
+        desc = "grid (description - Archive Specifications)"
+        level = BaseCheck.MEDIUM
+        out_of = 1
+        score = 0
+        messages = []
+
+        # Get grid from global attributes - if not defined, another check will throw the error
+        grid = self._get_attr("grid", default=False)
+        if not grid:
+            score += 1
+        else:
+            # Check if grid description is following the examples
+            if re.fullmatch(r"^.* with .* grid spacing.*$", grid):
+                score += 1
+            else:
+                messages.append(
+                    "The global attribute 'grid' has no standard form, but it is suggested to include a brief description "
+                    "of the native grid and resolution. If the data have been regridded, the regridding procedure and a "
+                    "description of the target grid should be provided as well. "
+                    "For example: 'Rotated-pole latitude-longitude with 0.22 degree grid spacing'. For a full set of"
+                    " examples, please have a look at the CORDEX-CMIP6 Archive Specifications."
+                )
+
+        return self.make_result(level, score, out_of, desc, messages)
+
     def check_driving_attributes(self, ds):
         """Checks if all driving attributes are defined as required."""
         desc = "Driving attributes (Archive Specifications)"
