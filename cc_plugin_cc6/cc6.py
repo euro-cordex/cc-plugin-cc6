@@ -54,6 +54,8 @@ class CORDEXCMIP6(MIPCVCheck):
             self._initialize_CV_info(tables_path)
             self._initialize_time_info()
             self._initialize_coords_info()
+            if self.consistency_output:
+                self._write_consistency_output()
 
         # Specify the global attributes that will be checked by a specific check
         #  rather than a general check against the value given in the CV

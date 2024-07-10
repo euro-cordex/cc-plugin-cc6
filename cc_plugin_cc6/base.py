@@ -3,6 +3,7 @@ import os
 import re
 from collections import ChainMap
 from datetime import datetime as dt
+from hashlib import md5
 from pathlib import Path
 
 import cf_xarray  # noqa
@@ -66,12 +67,17 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
             self.debug = True
         else:
             self.debug = False
-        # Input options - Get path to the tables and initialize
+        # Input options
+        # - Output for consistency checks across files
+        self.consistency_output = self.inputs.get("consistency_output", False)
+        # - Get path to the tables and initialize
         if self.inputs.get("tables", False):
             tables_path = self.inputs["tables"]
             self._initialize_CV_info(tables_path)
             self._initialize_time_info()
             self._initialize_coords_info()
+            if self.consistency_output:
+                self._write_consistency_output()
         # Specify the global attributes that will be checked by a specific check
         #  rather than a general check against the value given in the CV
         #  (i.e. because it is not explicitly defined in the CV)
@@ -175,11 +181,18 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
             self.timedec = xr.decode_cf(
                 self.xrds.copy(deep=True), decode_times=True, use_cftime=True
             ).cf["time"]
+            self.time_invariant_vars = [
+                var
+                for var in list(self.xrds.data_vars.keys())
+                + list(self.xrds.coords.keys())
+                if self.time.name not in self.xrds[var].dims and var not in self.varname
+            ]
         else:
             self.calendar = None
             self.timeunits = None
             self.timebnds = None
             self.timedec = None
+            self.time_invariant_vars = []
 
     def _initialize_coords_info(self):
         """Get information about the infile coordinates."""
@@ -260,6 +273,42 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
             raise Exception(
                 f"Could not find or open table '{table_prefix}_{table_name}.json' under path '{path}'."
             ) from e
+
+    def _write_consistency_output(self):
+        """Write output for consistency checks across files."""
+        # Dictionary of global attributes
+        required_attributes = self.CV.get("required_global_attributes", {})
+        file_attrs = {
+            k: str(v) for k, v in self.xrds.attrs.items() if k in required_attributes
+        }
+        for k in required_attributes:
+            if k not in file_attrs:
+                file_attrs[k] = "unset"
+        # Dictionary of variable attributes
+        var_attrs = {}
+        for var in list(self.xrds.data_vars.keys()) + list(self.xrds.coords.keys()):
+            var_attrs[var] = {
+                key: str(value)
+                for key, value in self.xrds[var].attrs.items()
+                if key not in ["history"]
+            }
+        # Dictionary of time_invariant variable checksums
+        coord_checksums = {}
+        for coord_var in self.time_invariant_vars:
+            coord_checksums[coord_var] = md5(
+                str(self.xrds[coord_var].values.tobytes()).encode("utf-8")
+            ).hexdigest()
+        # Write combined dictionary
+        with open(self.consistency_output, "w") as f:
+            json.dump(
+                {
+                    "global_attributes": file_attrs,
+                    "variable_attributes": var_attrs,
+                    "coordinates": coord_checksums,
+                },
+                f,
+                indent=4,
+            )
 
     def _compare_CV_element(self, el, val):
         """Compares value of a CV entry to a given value."""
