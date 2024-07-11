@@ -292,6 +292,28 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
                 for key, value in self.xrds[var].attrs.items()
                 if key not in ["history"]
             }
+        # Dictionary of time information
+        time_info = {}
+        if self.time is not None:
+            # Selecting first and last time_bnds value
+            #  (ignoring possible flaws in its definition)
+            bound0 = None
+            boundn = None
+            if self.timebnds is not None:
+                try:
+                    bound0 = self.xrds[self.timebnds].values[0, 0]
+                    boundn = self.xrds[self.timebnds].values[-1, -1]
+                except IndexError:
+                    pass
+            time_info = {
+                "frequency": self.frequency,
+                "units": self.timeunits,
+                "calendar": self.calendar,
+                "bound0": bound0,
+                "boundn": boundn,
+                "time0": self.time.values[0],
+                "timen": self.time.values[-1],
+            }
         # Dictionary of time_invariant variable checksums
         coord_checksums = {}
         for coord_var in self.time_invariant_vars:
@@ -305,6 +327,7 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
                     "global_attributes": file_attrs,
                     "variable_attributes": var_attrs,
                     "coordinates": coord_checksums,
+                    "time_info": time_info,
                 },
                 f,
                 indent=4,
@@ -327,16 +350,36 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
         if isinstance(el, str):
             if self.debug:
                 print(val, "->0")
-            return bool(re.fullmatch(el, str(val), flags=re.ASCII)), []
+            return (
+                bool(
+                    re.fullmatch(
+                        el.replace("[[:digit:]]", r"\d")
+                        .replace("\\{", "{")
+                        .replace("\\}", "}"),
+                        str(val),
+                        flags=re.ASCII,
+                    )
+                ),
+                [],
+            )
         # 1 and 2 #
         elif isinstance(el, list):
             if self.debug:
                 print(val, "->1 and 2")
             if val not in el:
+
                 return (
                     any(
                         [
-                            bool(re.fullmatch(eli, str(val), flags=re.ASCII))
+                            bool(
+                                re.fullmatch(
+                                    eli.replace("[[:digit:]]", r"\d")
+                                    .replace("\\{", "{")
+                                    .replace("\\}", "}"),
+                                    str(val),
+                                    flags=re.ASCII,
+                                )
+                            )
                             for eli in el
                         ]
                     ),
