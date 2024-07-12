@@ -24,7 +24,7 @@ class CORDEXCMIP6(MIPCVCheck):
 
     def setup(self, dataset):
         super().setup(dataset)
-        if not self.inputs.get("tables", False):
+        if not self.options.get("tables", False):
             if self.debug:
                 print("Downloading CV and CMOR tables.")
             tables_path = "~/.cc6_metadata/cordex-cmip6-cmor-tables"

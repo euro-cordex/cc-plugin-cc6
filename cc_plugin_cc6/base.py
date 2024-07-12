@@ -62,17 +62,16 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
             self.filepath, decode_coords=True, decode_times=False
         )
         # Options
-        self.options = self.options
         if "debug" in self.options:
             self.debug = True
         else:
             self.debug = False
         # Input options
         # - Output for consistency checks across files
-        self.consistency_output = self.inputs.get("consistency_output", False)
+        self.consistency_output = self.options.get("consistency_output", False)
         # - Get path to the tables and initialize
-        if self.inputs.get("tables", False):
-            tables_path = self.inputs["tables"]
+        if self.options.get("tables", False):
+            tables_path = self.options["tables"]
             self._initialize_CV_info(tables_path)
             self._initialize_time_info()
             self._initialize_coords_info()
@@ -145,7 +144,11 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
         var_ids = [v for v in varlist if v in list(self.dataset.variables.keys())]
         self.varname = var_ids
         # Identify table_id, requested frequency and cell_methods
-        self.table_id = self._get_attr("table_id")
+        self.table_id_raw = self._get_attr("table_id")
+        if self.table_id_raw in self.CT:
+            self.table_id = self.table_id_raw
+        else:
+            self.table_id = "unknown"
         self.frequency = self._get_var_attr(self.varname, "frequency", False)
         if not self.frequency:
             self.frequency = self._get_attr("frequency")
@@ -499,6 +502,33 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
                     self.drs_gatts[gatt] = self.dataset.getncattr(gatt)
                 except AttributeError:
                     self.drs_gatts[gatt] = False
+
+    def check_table_id(self, ds):
+        """Table ID (CV)"""
+        desc = "Table ID"
+        level = BaseCheck.HIGH
+        out_of = 1
+        score = 0
+        messages = []
+
+        # Check if table_id is defined, and if it is valid
+        #   (and if not, if it could be inferred)
+        if self.table_id == "unknown":
+            if self.table_id_raw == "unknown":
+                messages.append("The global attribute 'table_id' is not defined.")
+            else:
+                messages.append(
+                    f"The CMOR table denoted by the global attribute 'table_id' could not be found: '{self.table_id_raw}'."
+                )
+        elif self.table_id != self.table_id_raw:
+            messages.append(
+                "The CMOR table denoted by the global attribute 'table_id' "
+                f"is not the expected one ('{self.table_id}'): '{self.table_id_raw}'."
+            )
+        else:
+            score += 1
+
+        return self.make_result(level, score, out_of, desc, messages)
 
     def check_drs_CV(self, ds):
         """DRS building blocks in filename and path checked against CV."""
