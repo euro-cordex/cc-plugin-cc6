@@ -33,7 +33,7 @@ dependencies = [
   "cftime",
   "cf_xarray",
   # "compliance-checker",
-  "compliance-checker @ git+https://github.com/sol1105/compliance-checker.git@inputoptions",
+  "compliance-checker @ git+https://github.com/ioos/compliance-checker.git@develop",
   "netCDF4",
   "pandas",
   "xarray"

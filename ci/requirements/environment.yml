@@ -21,4 +21,4 @@ dependencies:
   - pytest-env
   - GitPython
   - pip:
-    - compliance-checker @ git+https://github.com/sol1105/compliance-checker.git@inputoptions
+    - compliance-checker @ git+https://github.com/ioos/compliance-checker.git@develop
