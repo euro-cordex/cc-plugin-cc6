@@ -16,6 +16,7 @@ concurrency:
 
 jobs:
   test:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.event.pull_request.base.repo.full_name
     name: ${{ matrix.os }}-py${{ matrix.python-version }}
     runs-on: ${{ matrix.os }}
     defaults:
@@ -53,18 +54,17 @@ jobs:
       - name: Import plugin
         run: |
           python -c "import cc_plugin_cc6"
-#      - name: Run tests
-#        timeout-minutes: 5
-#        run: python -u -m pytest
-#          --cov=cc_pluging_cc6
-#          --cov-report=xml
-#          --junitxml=test-results/${{ runner.os }}-${{ matrix.python-version }}.xml
-
-#      - name: Upload code coverage to Codecov
-#        uses: codecov/codecov-action@v4
-#        with:
-#          file: ./coverage.xml
-#          flags: unittests
-#          env_vars: RUNNER_OS,PYTHON_VERSION
-#          name: codecov-umbrella
-#          fail_ci_if_error: false
+      - name: Run tests
+        timeout-minutes: 5
+        run: python -u -m pytest -rA
+          --cov=cc_plugin_cc6
+          --cov-report=xml
+          --junitxml=test-results/${{ runner.os }}-${{ matrix.python-version }}.xml
+      - name: Upload code coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./coverage.xml
+          flags: unittests
+          env_vars: RUNNER_OS,PYTHON_VERSION
+          name: codecov-umbrella
+          fail_ci_if_error: false
