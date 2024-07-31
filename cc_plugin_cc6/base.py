@@ -36,7 +36,7 @@ def printtimedelta(d):
 
 class MIPCVCheckBase(BaseCheck):
     register_checker = False
-    _cc_spec = ""
+    _cc_spec = "mip"
     _cc_spec_version = __version__
     _cc_description = "Checks compliance with given CV tables."
     _cc_checker_version = __version__
@@ -44,7 +44,7 @@ class MIPCVCheckBase(BaseCheck):
 
 
 class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
-    register_checker = False
+    register_checker = True
 
     @classmethod
     def make_result(cls, level, score, out_of, name, messages):
@@ -77,6 +77,11 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
             self._initialize_coords_info()
             if self.consistency_output:
                 self._write_consistency_output()
+        elif self._cc_spec == "mip":
+            raise Exception(
+                "ERROR: No 'tables' option specified. Cannot initialize CV and MIP tables."
+            )
+
         # Specify the global attributes that will be checked by a specific check
         #  rather than a general check against the value given in the CV
         #  (i.e. because it is not explicitly defined in the CV)
@@ -156,11 +161,26 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
         #  in some projects (eg. CORDEX), the table_id is not required,
         #  since there is one table per frequency, so table_id = frequency.
         if self.table_id == "unknown":
-            possible_ids = [key for key in self.CT.keys() if self.frequency in key]
+            possible_ids = list()
+            if len(self.varname) > 0:
+                for table in table_names:
+                    if table in ["CV", "grids", "coordinate", "formula_terms"]:
+                        continue
+                    if (
+                        self.varname[0] in self.CT[table]["variable_entry"]
+                        and self.frequency
+                        == self.CT[table]["variable_entry"][self.varname[0]][
+                            "frequency"
+                        ]
+                    ):
+                        possible_ids.append(table)
+            if len(possible_ids) == 0:
+                possible_ids = [key for key in self.CT.keys() if self.frequency in key]
             if len(possible_ids) == 1:
                 if self.debug:
                     print("Determined possible table_id = ", possible_ids[0])
                 self.table_id = possible_ids[0]
+
         self.cell_methods = self._get_var_attr(self.varname, "cell_methods", "unknown")
         # Get missing_value
         if self.table_id == "unknown":
@@ -880,7 +900,8 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
         if self.cell_methods == "unknown":
             if len(self.varname) > 0:
                 messages.append(
-                    "No 'cell_methods' attribute defined for '{self.varname[0]}'."
+                    f"MIP table for '{self.varname[0]}' could not be identified"
+                    " and thus no 'cell_methods' attribute could be read."
                 )
             else:
                 messages.append("The 'cell_methods' are not specified.")

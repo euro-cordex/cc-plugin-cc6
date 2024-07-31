@@ -44,6 +44,7 @@ dynamic = [
 
 [project.entry-points."compliance_checker.suites"]
 cc6 = "cc_plugin_cc6.cc6:CORDEXCMIP6"
+mip = "cc_plugin_cc6.base:MIPCVCheck"
 
 [project.optional-dependencies]
 dev = [
