@@ -77,6 +77,11 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
             self._initialize_coords_info()
             if self.consistency_output:
                 self._write_consistency_output()
+        elif self._cc_spec == "mip":
+            raise Exception(
+                "ERROR: No 'tables' option specified. Cannot initialize CV and MIP tables."
+            )
+
         # Specify the global attributes that will be checked by a specific check
         #  rather than a general check against the value given in the CV
         #  (i.e. because it is not explicitly defined in the CV)
