@@ -42,8 +42,8 @@ cc6_checkdict = mip_checkdict | cc6_checkdict
 expected_failures = dict()
 expected_failures["TAS_REMO"] = {
     "check_drs_CV": [
-        "DRS path building blocks could not be checked: 'driving_variant_label', 'version_realization'.",
-        "DRS filename building blocks could not be checked: 'driving_variant_label', 'version_realization'.",
+        "DRS path building blocks could not be checked: 'version_realization'.",
+        "DRS filename building blocks could not be checked: 'version_realization'.",
     ],
     "check_compression": [
         "It is recommended that data should be compressed with a 'deflate level' of '1' and enabled 'shuffle' option.",
@@ -51,7 +51,7 @@ expected_failures["TAS_REMO"] = {
     ],
     "check_required_global_attributes_CV": [
         "Global attribute 'source' does not comply with the CV: 'REMO regional model (2022)'.",
-        "Required global attributes could not be checked against CV: 'driving_variant_label', 'version_realization'.",
+        "Required global attributes could not be checked against CV: 'version_realization'.",
     ],
     "check_time_chunking": [],
     "check_version_realization_info": [
@@ -60,8 +60,8 @@ expected_failures["TAS_REMO"] = {
 }
 expected_failures["FXOROG_REMO"] = {
     "check_drs_CV": [
-        "DRS path building blocks could not be checked: 'driving_variant_label', 'version_realization'.",
-        "DRS filename building blocks could not be checked: 'driving_variant_label', 'version_realization'.",
+        "DRS path building blocks could not be checked: 'version_realization'.",
+        "DRS filename building blocks could not be checked: 'version_realization'.",
     ],
     "check_compression": [
         "It is recommended that data should be compressed with a 'deflate level' of '1' and enabled 'shuffle' option.",
@@ -69,7 +69,7 @@ expected_failures["FXOROG_REMO"] = {
     ],
     "check_required_global_attributes_CV": [
         "Global attribute 'source' does not comply with the CV: 'REMO regional model (2022)'.",
-        "Required global attributes could not be checked against CV: 'driving_variant_label', 'version_realization'.",
+        "Required global attributes could not be checked against CV: 'version_realization'.",
     ],
     "check_version_realization_info": [
         "The global attribute 'version_realization_info' is missing. It is however recommended"
