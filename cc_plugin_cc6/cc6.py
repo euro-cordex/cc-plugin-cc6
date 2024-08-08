@@ -354,7 +354,15 @@ class CORDEXCMIP6(MIPCVCheck):
         if self.time is not None:
             if self.timeunits not in [
                 "days since 1950-01-01T00:00:00Z",
+                "days since 1950-01-01T00:00:00",
+                "days since 1950-01-01 00:00:00",
+                "days since 1950-01-01",
+                "days since 1950-1-1",
                 "days since 1850-01-01T00:00:00Z",
+                "days since 1850-01-01T00:00:00",
+                "days since 1850-01-01 00:00:00",
+                "days since 1850-01-01",
+                "days since 1850-1-1",
             ]:
                 messages.append(
                     "Your time axis' 'units' attribute differs from the allowed values "

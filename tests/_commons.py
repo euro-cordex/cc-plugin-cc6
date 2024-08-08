@@ -18,3 +18,8 @@ FXOROG_REMO = os.path.join(
     "CORDEX/CMIP6/DD/EUR-12/GERICS/ERA5/evaluation/r1i1p1f1/REMO2020/v1/fx/orog/v20240529",
     "orog_EUR-12_ERA5_evaluation_r1i1p1f1_GERICS_REMO2020_v1_fx.nc",
 )
+
+DATASETS = {
+    "TAS_REMO": TAS_REMO,
+    "FXOROG_REMO": FXOROG_REMO,
+}

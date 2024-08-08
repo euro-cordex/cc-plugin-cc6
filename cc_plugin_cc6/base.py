@@ -201,6 +201,10 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
             self.calendar = time_attrs.get("calendar", None)
             self.timeunits = time_attrs.get("units", None)
             self.timebnds = time_attrs.get("bounds", None)
+            # Here, xarray decodes the time axis.
+            # The entire checker crashes in case of invalid time units
+            # todo: catch a possible exception in base._initialize_time_info
+            #       and report the problem in any check method
             self.timedec = xr.decode_cf(
                 self.xrds.copy(deep=True), decode_times=True, use_cftime=True
             ).cf["time"]
@@ -554,7 +558,7 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
         """DRS building blocks in filename and path checked against CV."""
         desc = "DRS (CV)"
         level = BaseCheck.HIGH
-        out_of = 3
+        out_of = 5
         score = 0
         messages = []
 
@@ -595,7 +599,7 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
             score += 1
         else:
             messages.append(
-                f"""DRS path building blocks could not be checked: {', '.join(f"'{ukey}'" for ukey in unchecked)}."""
+                f"""DRS path building blocks could not be checked: {', '.join(f"'{ukey}'" for ukey in sorted(unchecked))}."""
             )
 
         # Unchecked DRS filename building blocks
@@ -608,7 +612,7 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
             score += 1
         else:
             messages.append(
-                f"""DRS filename building blocks could not be checked: {', '.join(f"'{ukey}'" for ukey in unchecked)}."""
+                f"""DRS filename building blocks could not be checked: {', '.join(f"'{ukey}'" for ukey in sorted(unchecked))}."""
             )
 
         return self.make_result(level, score, out_of, desc, messages)
@@ -764,7 +768,7 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
             score += 1
         else:
             messages.append(
-                f"""Required global attributes could not be checked against CV: {', '.join(f"'{ukey}'" for ukey in unchecked)}."""
+                f"""Required global attributes could not be checked against CV: {', '.join(f"'{ukey}'" for ukey in sorted(unchecked))}."""
             )
 
         return self.make_result(level, score, out_of, desc, messages)
@@ -1043,7 +1047,7 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
         # Check if frequency is identified and data is not time invariant
         #  (as defined in deltdic)
         if self.frequency in ["unknown", "fx"]:
-            if self.frequency == "fx" and self.drs_fn["time_range"] is False:
+            if self.frequency == "fx" and self.drs_fn["time_range"]:
                 messages.append(
                     "Expected no 'time_range' element in filename for "
                     f"frequency 'fx', but found: '{self.drs_fn['time_range']}'."
