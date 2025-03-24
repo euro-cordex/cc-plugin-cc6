@@ -14,11 +14,11 @@ dependencies:
   - python-cdo
   - py-cordex
   - pooch
-#  - compliance-checker
+  - compliance-checker>=5.1.2 # https://github.com/ioos/compliance-checker/pull/1091
 # for testing
   - pytest
   - pytest-cov
   - pytest-env
   - GitPython
-  - pip:
-    - compliance-checker @ git+https://github.com/ioos/compliance-checker.git@develop
+  #- pip:
+  #  - compliance-checker @ git+https://github.com/ioos/compliance-checker.git@develop
