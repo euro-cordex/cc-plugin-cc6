@@ -14,7 +14,7 @@ dependencies:
   - python-cdo
   - py-cordex
   - pooch
-  - compliance-checker>=5.1.2
+  - compliance-checker>=5.1.2 # https://github.com/ioos/compliance-checker/pull/1091
 # for testing
   - pytest
   - pytest-cov
