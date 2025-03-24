@@ -12,13 +12,13 @@ This [ioos/compliance-checker](https://github.com/ioos/compliance-checker) plugi
 
 ## Installation
 
-### Conda (not yet available)
+### Conda
 
 ```shell
 $ conda install -c conda-forge cc-plugin-cc6
 ```
 
-### Pip (not yet available)
+### Pip
 
 ```shell
 $ pip install cc-plugin-cc6
