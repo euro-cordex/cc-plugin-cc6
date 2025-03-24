@@ -39,7 +39,7 @@ jobs:
         run: |
           python -m twine check --strict dist/*
           pwd
-          if [ -f dist/cc-plugin-cc6-0.0.0.tar.gz ]; then
+          if [ -f dist/cc_plugin_cc6-0.0.0.tar.gz ]; then
             echo "❌ INVALID VERSION NUMBER"
             exit 1
           else
@@ -71,7 +71,7 @@ jobs:
         if: github.event_name == 'push'
         run: |
           python -m pip install --upgrade pip
-          python -m pip install dist/cc-plugin-cc6*.whl
+          python -m pip install dist/cc_plugin_cc6*.whl
           python -c "import cc_plugin_cc6; print(cc_plugin_cc6.__version__)"
 
   upload-to-test-pypi:
