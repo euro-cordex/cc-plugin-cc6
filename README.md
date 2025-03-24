@@ -1,5 +1,7 @@
 # CORDEX-CMIP6 Compliance Checker Plugin
 
+![PyPI](https://img.shields.io/pypi/v/cc-plugin-cc6?label=pypi%20package)
+
 This [ioos/compliance-checker](https://github.com/ioos/compliance-checker) plugin checks compliance with CORDEX-CMIP6 archive specifications:
 
 | Standard                                                                                             | Checker Name |
