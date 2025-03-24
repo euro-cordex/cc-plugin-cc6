@@ -11,10 +11,10 @@ name = "cc-plugin-cc6"
 description = "Compliance Checker CORDEX-CMIP6 plugin"
 readme = "README.md"
 keywords = ["compliance checker", "plugin", "cordex", "cordex-cmip6"]
-license = {text = "Apache-2.0"}
+license = {file = "LICENSE"}
 authors = [
-  {name = "Lars Buntemeyer", email = "lars.buntemeyer@hereon.de"},
-  {name = "Martin Schupfner", email = "schupfner@dkrz.de"}
+  {name = "Martin Schupfner", email = "schupfner@dkrz.de"},
+  {name = "Lars Buntemeyer", email = "lars.buntemeyer@hereon.de"}
 ]
 maintainers = [
   {name = "Lars Buntemeyer", email = "lars.buntemeyer@hereon.de"},
@@ -31,7 +31,6 @@ classifiers = [
 dependencies = [
   "cftime",
   "cf_xarray",
-  # "compliance-checker",
   "compliance-checker>=5.1.2",
   "netCDF4",
   "pandas",
@@ -101,7 +100,7 @@ exclude = [
 
 [tool.isort]
 profile = "black"
-py_version = 38
+py_version = 310
 
 [tool.pytest.ini_options]
 filterwarnings = [
