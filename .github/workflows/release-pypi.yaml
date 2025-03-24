@@ -8,7 +8,6 @@ on:
       - 'v*'
     branches:
       - release
-      - main
   workflow_dispatch:
 
 jobs:

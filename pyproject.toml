@@ -20,7 +20,7 @@ maintainers = [
   {name = "Lars Buntemeyer", email = "lars.buntemeyer@hereon.de"},
   {name = "Martin Schupfner", email = "schupfner@dkrz.de"}
 ]
-requires-python = ">=3.8"
+requires-python = ">=3.10"
 classifiers = [
   "Programming Language :: Python :: 3 :: Only",
   "Programming Language :: Python :: 3.10",
