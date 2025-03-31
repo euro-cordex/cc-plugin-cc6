@@ -1,6 +1,8 @@
 def retrieve(url, fname, path, force=False):
-    import pooch
     import os
+
+    import pooch
+
     # Create the full path to the file
     full_path = os.path.join(os.path.expanduser(path), fname)
     # Check if the file exists locally and delete if redownload is forced
