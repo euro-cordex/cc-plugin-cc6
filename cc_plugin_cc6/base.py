@@ -15,6 +15,7 @@ from compliance_checker.base import BaseCheck, BaseNCCheck, Result
 from cc_plugin_cc6 import __version__
 
 from ._constants import deltdic
+from .utils import convert_posix_to_python
 
 get_tseconds = lambda t: t.total_seconds()  # noqa
 get_tseconds_vector = np.vectorize(get_tseconds)
@@ -380,9 +381,7 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
             return (
                 bool(
                     re.fullmatch(
-                        el.replace("[[:digit:]]", r"\d")
-                        .replace("\\{", "{")
-                        .replace("\\}", "}"),
+                        convert_posix_to_python(el),
                         str(val),
                         flags=re.ASCII,
                     )
@@ -400,9 +399,7 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
                         [
                             bool(
                                 re.fullmatch(
-                                    eli.replace("[[:digit:]]", r"\d")
-                                    .replace("\\{", "{")
-                                    .replace("\\}", "}"),
+                                    convert_posix_to_python(eli),
                                     str(val),
                                     flags=re.ASCII,
                                 )

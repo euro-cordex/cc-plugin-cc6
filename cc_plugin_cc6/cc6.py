@@ -27,7 +27,7 @@ class CORDEXCMIP6(MIPCVCheck):
         if not self.options.get("tables", False):
             if self.debug:
                 print("Downloading CV and CMOR tables.")
-            tables_path = "~/.cc6_metadata/cordex-cmip6-cmor-tables"
+            tables_path = self.options.get("tables_dir", "~/.cc6_metadata/cordex-cmip6-cmor-tables")
             for table in [
                 "coordinate",
                 "grids",
@@ -45,6 +45,7 @@ class CORDEXCMIP6(MIPCVCheck):
                     CORDEX_CMIP6_CMOR_TABLES_URL + "CORDEX-CMIP6_" + table + ".json",
                     filename,
                     tables_path,
+                    force=self.options.get("force_table_download", False),
                 )
                 if os.path.basename(os.path.realpath(filename_retrieved)) != filename:
                     raise AssertionError(
