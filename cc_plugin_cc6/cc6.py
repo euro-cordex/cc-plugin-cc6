@@ -27,7 +27,9 @@ class CORDEXCMIP6(MIPCVCheck):
         if not self.options.get("tables", False):
             if self.debug:
                 print("Downloading CV and CMOR tables.")
-            tables_path = self.options.get("tables_dir", "~/.cc6_metadata/cordex-cmip6-cmor-tables")
+            tables_path = self.options.get(
+                "tables_dir", "~/.cc6_metadata/cordex-cmip6-cmor-tables"
+            )
             for table in [
                 "coordinate",
                 "grids",
@@ -70,6 +72,7 @@ class CORDEXCMIP6(MIPCVCheck):
             "time_range",
             "variable_id",
             "version",
+            "version_realization",
         ]
 
     def check_format(self, ds):
@@ -180,6 +183,30 @@ class CORDEXCMIP6(MIPCVCheck):
             last_time, calendar=self.calendar, units=self.timeunits
         )
 
+        # Calculate the expected start and end dates of the year
+        expected_start_date = cftime.datetime(
+            first_time.year, 1, 1, 0, 0, 0, calendar=self.calendar
+        )
+        if self.frequency in ["1hr", "6hr"]:
+            expected_end_date = cftime.datetime(
+                first_time.year + 1, 1, 1, 0, 0, 0, calendar=self.calendar
+            )
+        elif self.frequency == "day":
+            year = first_time.year + 1
+            while str(year)[-1] not in ["1", "6"]:
+                year += 1
+            expected_end_date = cftime.datetime(
+                year, 1, 1, 0, 0, 0, calendar=self.calendar
+            )
+        else:
+
+            year = first_time.year + 1
+            while str(year)[-1] != "1":
+                year += 1
+            expected_end_date = cftime.datetime(
+                year, 1, 1, 0, 0, 0, calendar=self.calendar
+            )
+
         # File chunks as requested by CORDEX-CMIP6
         if self.frequency == "mon":
             nyears = 10
@@ -188,14 +215,6 @@ class CORDEXCMIP6(MIPCVCheck):
         # subdaily
         else:
             nyears = 1
-
-        # Calculate the expected start and end dates of the year
-        expected_start_date = cftime.datetime(
-            first_time.year, 1, 1, 0, 0, 0, calendar=self.calendar
-        )
-        expected_end_date = cftime.datetime(
-            last_time.year + nyears, 1, 1, 0, 0, 0, calendar=self.calendar
-        )
 
         # Apply calendar- and frequency-dependent adjustments
         offset = 0
@@ -225,7 +244,7 @@ class CORDEXCMIP6(MIPCVCheck):
 
         if len(messages) == 0:
             errmsg = (
-                f"{'Apart from the last file of a timeseries ' if nyears>1 else ''}'{nyears}' "
+                f"{'Apart from the first and last files of a timeseries ' if nyears>1 else ''}'{nyears}' "
                 f"full simulation year{' is' if nyears==1 else 's are'} "
                 f"expected in the data file for frequency '{self.frequency}'."
             )
@@ -451,6 +470,71 @@ class CORDEXCMIP6(MIPCVCheck):
                     "For example: 'Rotated-pole latitude-longitude with 0.22 degree grid spacing'. For a full set of"
                     " examples, please have a look at the CORDEX-CMIP6 Archive Specifications."
                 )
+
+        return self.make_result(level, score, out_of, desc, messages)
+
+    def check_version_realization(self, ds):
+        """Checks if version_realization is defined as recommended."""
+        # todo: can be removed when CV gets updated with a regex for version_realization
+        desc = "version_realization (Archive Specifications)"
+        level = BaseCheck.HIGH
+        out_of = 3
+        score = 0
+        messages = []
+
+        # Filename
+        expected = r"Expected pattern: 'v[1-9]\d*-r[1-9]\d*', eg. 'v1-r3'."
+        if self.drs_fn["version_realization"]:
+            if not bool(
+                re.fullmatch(
+                    r"v[1-9]\d*-r[1-9]\d*",
+                    self.drs_fn["version_realization"],
+                    flags=re.ASCII,
+                )
+            ):
+                messages.append(
+                    f"DRS filename building block 'version_realization' does not comply with the CORDEX-CMIP6 Archive Specifications: '{self.drs_fn['version_realization']}'. {expected}"
+                )
+            else:
+                score += 1
+        else:
+            messages.append(
+                "DRS filename building block 'version_realization' is missing."
+            )
+
+        # Folder structure
+        if self.drs_dir["version_realization"]:
+            if not bool(
+                re.fullmatch(
+                    r"v[1-9]\d*-r[1-9]\d*",
+                    self.drs_dir["version_realization"],
+                    flags=re.ASCII,
+                )
+            ):
+                messages.append(
+                    f"DRS path building block 'version_realization' does not comply with the CORDEX-CMIP6 Archive Specifications: '{self.drs_dir['version_realization']}'. {expected}"
+                )
+            else:
+                score += 1
+        else:
+            messages.append("DRS path building block 'version_realization' is missing.")
+
+        # Global attribute
+        if self.drs_gatts["version_realization"]:
+            if not bool(
+                re.fullmatch(
+                    r"v[1-9]\d*-r[1-9]\d*",
+                    self.drs_gatts["version_realization"],
+                    flags=re.ASCII,
+                )
+            ):
+                messages.append(
+                    f"Global attribute 'version_realization' does not comply with the CORDEX-CMIP6 Archive Specifications: '{self.drs_gatts['version_realization']}'. {expected}"
+                )
+            else:
+                score += 1
+        else:
+            messages.append("Global attribute 'version_realization' is missing.")
 
         return self.make_result(level, score, out_of, desc, messages)
 

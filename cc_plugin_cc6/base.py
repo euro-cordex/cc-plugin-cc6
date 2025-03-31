@@ -15,7 +15,7 @@ from compliance_checker.base import BaseCheck, BaseNCCheck, Result
 from cc_plugin_cc6 import __version__
 
 from ._constants import deltdic
-from .utils import convert_posix_to_python
+from .utils import match_pattern_or_string
 
 get_tseconds = lambda t: t.total_seconds()  # noqa
 get_tseconds_vector = np.vectorize(get_tseconds)
@@ -375,42 +375,17 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
         # 6 # key (source_id) -> *dict key -> dict key (license_info) -> dict key (id, license) -> value
         # ########################################################################################
         # 0 (2nd+ level comparison) #
+        if self.debug:
+            print(el, val)
         if isinstance(el, str):
             if self.debug:
                 print(val, "->0")
-            return (
-                bool(
-                    re.fullmatch(
-                        convert_posix_to_python(el),
-                        str(val),
-                        flags=re.ASCII,
-                    )
-                ),
-                [],
-            )
+            return (match_pattern_or_string(el, str(val)), [], [el])
         # 1 and 2 #
         elif isinstance(el, list):
             if self.debug:
                 print(val, "->1 and 2")
-            if val not in el:
-
-                return (
-                    any(
-                        [
-                            bool(
-                                re.fullmatch(
-                                    convert_posix_to_python(eli),
-                                    str(val),
-                                    flags=re.ASCII,
-                                )
-                            )
-                            for eli in el
-                        ]
-                    ),
-                    [],
-                )
-            else:
-                return True, []
+            return (any([match_pattern_or_string(eli, str(val)) for eli in el]), [], el)
         # 3 to 6 #
         elif isinstance(el, dict):
             if self.debug:
@@ -420,18 +395,18 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
                 if isinstance(el[val], str):
                     if self.debug:
                         print(val, "->3")
-                    return True, []
+                    return True, [], []
                 # 4 to 6 #
                 elif isinstance(el[val], dict):
                     if self.debug:
                         print(val, "->4 to 6")
-                    return True, list(el[val].keys())
+                    return True, list(el[val].keys()), []
                 else:
                     raise ValueError(
                         f"Unknown CV structure for element: {el} and value {val}."
                     )
             else:
-                return False, []
+                return False, [], list(el.keys())
         # (Yet) unknown
         else:
             raise ValueError(
@@ -450,11 +425,17 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
                     print(attr, "1st level")
                 errmsg = f"""{errmsg_prefix}'{attr}' does not comply with the CV: '{dic2comp[attr] if dic2comp[attr] else 'unset'}'."""
                 checked[attr] = True
-                test, attrs_lvl2 = self._compare_CV_element(
+                test, attrs_lvl2, allowed_vals = self._compare_CV_element(
                     self.CV[attr], dic2comp[attr]
                 )
                 # If comparison fails
                 if not test:
+                    if len(allowed_vals) == 1:
+                        errmsg += f""" Expected value/pattern: '{allowed_vals[0]}'."""
+                    elif len(allowed_vals) > 3:
+                        errmsg += f""" Allowed values: {", ".join(f"'{av}'" for av in allowed_vals[0:3])}, ..."""
+                    elif len(allowed_vals) > 1:
+                        errmsg += f""" Allowed values: {", ".join(f"'{av}'" for av in allowed_vals)}."""
                     messages.append(errmsg)
                 # If comparison could not be processed completely, as the CV element is another dictionary
                 else:
@@ -465,15 +446,23 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
                             errmsg_lvl2 = f"""{errmsg_prefix}'{attr_lvl2}' does not comply with the CV: '{dic2comp[attr_lvl2] if dic2comp[attr_lvl2] else 'unset'}'."""
                             checked[attr_lvl2] = True
                             try:
-                                test, attrs_lvl3 = self._compare_CV_element(
-                                    self.CV[attr][dic2comp[attr]][attr_lvl2],
-                                    dic2comp[attr_lvl2],
+                                test, attrs_lvl3, allowed_vals = (
+                                    self._compare_CV_element(
+                                        self.CV[attr][dic2comp[attr]][attr_lvl2],
+                                        dic2comp[attr_lvl2],
+                                    )
                                 )
                             except ValueError:
                                 raise ValueError(
                                     f"Unknown CV structure for element {attr} -> {self.CV[attr][dic2comp[attr]][attr_lvl2]} / {attr_lvl2} -> {dic2comp[attr_lvl2]}."
                                 )
                             if not test:
+                                if len(allowed_vals) == 1:
+                                    errmsg_lvl2 += f""" Expected value/pattern: '{allowed_vals[0]}'."""
+                                elif len(allowed_vals) > 3:
+                                    errmsg_lvl2 += f""" Allowed values: {", ".join(f"'{av}'" for av in allowed_vals[0:3])}, ..."""
+                                elif len(allowed_vals) > 1:
+                                    errmsg_lvl2 += f""" Allowed values: {", ".join(f"'{av}'" for av in allowed_vals)}."""
                                 messages.append(errmsg_lvl2)
                             else:
                                 if len(attrs_lvl3) > 0:

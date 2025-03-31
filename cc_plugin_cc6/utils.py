@@ -1,3 +1,6 @@
+import re
+
+
 def convert_posix_to_python(posix_regex):
     """
     Convert common POSIX regular expressions to Python regular expressions.
@@ -36,3 +39,23 @@ def convert_posix_to_python(posix_regex):
     posix_regex = posix_regex.replace(r"\{", "{").replace(r"\}", "}")
 
     return posix_regex
+
+
+def match_pattern_or_string(pattern, target):
+    """
+    Compare a regex pattern or a string with the target string.
+
+    Args:
+        pattern (str): The regex pattern or string to compare.
+        target (str): The string to compare against.
+
+    Returns:
+        bool: True if the target matches the regex pattern or is equal to the string.
+    """
+    return bool(
+        re.fullmatch(convert_posix_to_python(pattern), target, flags=re.ASCII)
+    ) or (
+        pattern == target
+        and convert_posix_to_python(target) == target
+        and ".*" not in target
+    )
