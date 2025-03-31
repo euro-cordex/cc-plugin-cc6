@@ -35,41 +35,35 @@ cc6_checkdict = {
     "check_driving_attributes": "Driving attributes (Archive Specifications)",
     "check_domain_id": "domain_id (CV)",
     "check_institution": "institution (CV)",
+    "check_version_realization": "version_realization (Archive Specifications)",
 }
 cc6_checkdict = mip_checkdict | cc6_checkdict
 
 # Expected check failures
 expected_failures = dict()
 expected_failures["TAS_REMO"] = {
-    "check_drs_CV": [
-        "DRS path building blocks could not be checked: 'version_realization'.",
-        "DRS filename building blocks could not be checked: 'version_realization'.",
+    "check_version_realization": [
+        "DRS filename building block 'version_realization' does not comply",
+        "DRS path building block 'version_realization' does not comply",
+        "Global attribute 'version_realization' does not comply",
     ],
     "check_compression": [
         "It is recommended that data should be compressed with a 'deflate level' of '1' and enabled 'shuffle' option.",
         "The 'shuffle' option is disabled.",
     ],
-    "check_required_global_attributes_CV": [
-        "Global attribute 'source' does not comply with the CV: 'REMO regional model (2022)'.",
-        "Required global attributes could not be checked against CV: 'version_realization'.",
-    ],
-    "check_time_chunking": [],
     "check_version_realization_info": [
         "The global attribute 'version_realization_info' is missing. It is however recommended"
     ],
 }
 expected_failures["FXOROG_REMO"] = {
-    "check_drs_CV": [
-        "DRS path building blocks could not be checked: 'version_realization'.",
-        "DRS filename building blocks could not be checked: 'version_realization'.",
+    "check_version_realization": [
+        "DRS filename building block 'version_realization' does not comply",
+        "DRS path building block 'version_realization' does not comply",
+        "Global attribute 'version_realization' does not comply",
     ],
     "check_compression": [
         "It is recommended that data should be compressed with a 'deflate level' of '1' and enabled 'shuffle' option.",
         "The 'shuffle' option is disabled.",
-    ],
-    "check_required_global_attributes_CV": [
-        "Global attribute 'source' does not comply with the CV: 'REMO regional model (2022)'.",
-        "Required global attributes could not be checked against CV: 'version_realization'.",
     ],
     "check_version_realization_info": [
         "The global attribute 'version_realization_info' is missing. It is however recommended"
