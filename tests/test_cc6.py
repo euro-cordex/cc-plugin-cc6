@@ -21,6 +21,7 @@ mip_checkdict = {
     "check_time_range": "Time range consistency",
     "check_version_date": "version_date (CMOR)",
     "check_creation_date": "creation_date (CMOR)",
+    "check_variable_attributes": "Variable attributes (CV)",
 }
 cc6_checkdict = {
     "check_format": "File format",
@@ -36,6 +37,10 @@ cc6_checkdict = {
     "check_domain_id": "domain_id (CV)",
     "check_institution": "institution (CV)",
     "check_version_realization": "version_realization (Archive Specifications)",
+    "check_grid_mapping": "grid_mapping label (Archive Specifications)",
+    "check_lon_value_range": "Longitude value range (Archive Specifications)",
+    "check_lat_lon_bounds": "Presence of latitude and longitude bounds (Archive Specifications)",
+    "check_horizontal_axes_bounds": "Presence of horizontal axes bounds (Archive Specifications)",
 }
 cc6_checkdict = mip_checkdict | cc6_checkdict
 
@@ -54,6 +59,12 @@ expected_failures["TAS_REMO"] = {
     "check_version_realization_info": [
         "The global attribute 'version_realization_info' is missing. It is however recommended"
     ],
+    "check_horizontal_axes_bounds": [
+        "It is recommended for the variables 'rlat' and 'rlon' or 'x' and 'y' to have bounds defined."
+    ],
+    "check_grid_mapping": [
+        "The grid_mapping variable 'rotated_latitude_longitude' needs to include information regarding the shape and size of the Earth"
+    ],
 }
 expected_failures["FXOROG_REMO"] = {
     "check_version_realization": [
@@ -67,6 +78,12 @@ expected_failures["FXOROG_REMO"] = {
     ],
     "check_version_realization_info": [
         "The global attribute 'version_realization_info' is missing. It is however recommended"
+    ],
+    "check_horizontal_axes_bounds": [
+        "It is recommended for the variables 'rlat' and 'rlon' or 'x' and 'y' to have bounds defined."
+    ],
+    "check_grid_mapping": [
+        "The grid_mapping variable 'rotated_latitude_longitude' needs to include information regarding the shape and size of the Earth"
     ],
 }
 

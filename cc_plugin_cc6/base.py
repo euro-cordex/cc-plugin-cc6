@@ -695,12 +695,33 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
                 unknown.append(var)
         if len(unknown) > 0:
             messages.append(
-                f"(Coordinate) variable(s) {', '.join(unknown)} is/are not part of the CV."
+                f"(Coordinate) variable(s) {', '.join(unknown)} is/are not part of the CV or not compliant with the CF-Conventions."
             )
         else:
             score += 1
 
         return self.make_result(level, score, out_of, desc, messages)
+
+    def check_variable_attributes(self, ds):
+        """Checks mandatory variable attributes."""
+        desc = "Variable attributes (CV)"
+        level = BaseCheck.HIGH
+        score = 0
+        out_of = 2
+        messages = []
+
+        # Test only for the first identified variable
+        if len(self.varname) > 1:
+            messages.append(
+                "More than one requested variable found in file: "
+                f"{', '.join(self.varname)}. Only the first one will be checked."
+            )
+        elif len(self.varname) == 0:
+            return self.make_result(level, out_of, out_of, desc, messages)
+        else:
+            score += 1
+
+        return self.make_result(level, out_of, out_of, desc, messages)
 
     def check_required_global_attributes(self, ds):
         """Checks presence of mandatory global attributes."""
@@ -763,7 +784,7 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
         """Checks missing value."""
         desc = "Missing values"
         level = BaseCheck.HIGH
-        out_of = 3
+        out_of = 6
         score = 0
         messages = []
 
@@ -775,6 +796,7 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
             mval = ChainMap(
                 self.xrds[self.varname[0]].attrs, self.xrds[self.varname[0]].encoding
             ).get("missing_value", None)
+            # Check that both are set, and if so, are equal
             if fval is None or mval is None:
                 messages.append(
                     f"Both, 'missing_value' and '_FillValue' have to be set for variable '{self.varname[0]}'."
@@ -787,21 +809,53 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
                 )
             else:
                 score += 2
-            if self.missing_value and (fval or mval):
+
+            # Check that missing value is equal to requested value and has the correct dtype
+            if not mval:
+                mval = fval
+            if self.missing_value and mval:
                 if not (
                     np.isclose(self.missing_value, fval)
                     and np.isclose(self.missing_value, mval)
                 ):
                     messages.append(
                         f"The variable attributes '_FillValue' and/or 'missing_value' differ from "
-                        f"the requested value ('{self.missing_value}'): '{fval}' and/or '{mval}', respectively."
+                        f"the requested value '{self.missing_value}'."
                     )
                 else:
                     score += 1
             else:
                 score += 1
+
+            if fval:
+                dtype_fval = fval.dtype
+                dtype_mval = mval.dtype
+                if dtype_fval != dtype_mval:
+                    messages.append(
+                        f"The variable attributes '_FillValue' and 'missing_value' have different dtypes: "
+                        f"'{dtype_fval}' and '{dtype_mval}', respectively."
+                    )
+                else:
+                    score += 1
+                if (
+                    dtype_fval != self.xrds[self.varname[0]].dtype
+                    or dtype_mval != self.xrds[self.varname[0]].dtype
+                ):
+                    messages.append(
+                        "The variable attributes '_FillValue' and/or 'missing_value' have different data types than the variable."
+                    )
+                else:
+                    score += 1
+                if dtype_fval != np.float32 or dtype_mval != np.float32:
+                    messages.append(
+                        "The variable attributes '_FillValue' and/or 'missing_value' do not have 'float' as data type."
+                    )
+                else:
+                    score += 1
+            else:
+                score += 3
         else:
-            score += 3
+            score += 6
 
         return self.make_result(level, score, out_of, desc, messages)
 
