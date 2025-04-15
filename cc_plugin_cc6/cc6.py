@@ -187,7 +187,7 @@ class CORDEXCMIP6(MIPCVCheck):
                     "this can lead to performance issues when accessing the data."
                 )
             if ds[varname].filters()["shuffle"] is False:
-                messages[-1] +=" The 'shuffle' option is disabled."
+                messages[-1] += " The 'shuffle' option is disabled."
         else:
             score += 1
 
