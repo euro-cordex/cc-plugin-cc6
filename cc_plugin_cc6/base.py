@@ -93,6 +93,15 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
             "version",
         ]
 
+        # General
+        self.dtypesdict = {
+            "integer": np.int32,
+            "long": np.int64,
+            "real": np.float32,
+            "double": np.float64,
+            "character": "S",
+        }
+
     def _initialize_CV_info(self, tables_path):
         """Find and read CV and CMOR tables and extract basic information."""
         # Identify table prefix and table names
@@ -702,23 +711,170 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
 
         return self.make_result(level, score, out_of, desc, messages)
 
-    def check_variable_attributes(self, ds):
-        """Checks mandatory variable attributes."""
-        desc = "Variable attributes (CV)"
+    def check_variable_definition(self, ds):
+        """Checks mandatory variable attributes of the main variable."""
+        desc = "Variable definition (CV)"
         level = BaseCheck.HIGH
         score = 0
-        out_of = 2
+        out_of = 1
         messages = []
 
-        # Test only for the first identified variable
-        if len(self.varname) > 1:
-            messages.append(
-                "More than one requested variable found in file: "
-                f"{', '.join(self.varname)}. Only the first one will be checked."
-            )
-        elif len(self.varname) == 0:
+        # Do not check if no requested variable is identified
+        if len(self.varname) == 0:
             return self.make_result(level, out_of, out_of, desc, messages)
-        else:
+
+        var = self.varname[0]
+        attrs = ChainMap(
+            self.xrds[self.varname[0]].attrs,
+            self.xrds[self.varname[0]].encoding,
+        )
+        dims = list(self.xrds[self.varname[0]].dims)
+        coords_raw = attrs.get("coordinates", "")
+        coords = [
+            str(cv)
+            for cv in (
+                coords_raw
+                if isinstance(coords_raw, list)
+                else coords_raw.split() if isinstance(coords_raw, str) else []
+            )
+        ]
+
+        # Check dimensions & coordinates attribute
+        dimsCT = self._get_var_attr(var, "dimensions", [])
+        if dimsCT:
+            if isinstance(dimsCT, str):
+                dimsCT = dimsCT.split()
+            for dimCT in dimsCT:
+                # The coordinate out_name must be in one of the following
+                # - in the variable dimensions
+                # - in the variable attribute "coordinates"
+                # todo: generic levels like "alevel" / "olevel" / "alevhalf"
+                diminfo = self.CTcoords["axis_entry"].get(dimCT, {})
+                dim_on = diminfo.get("out_name", "")
+                dim_val_raw = diminfo.get("value", "")
+                if not dim_on:
+                    messages.append(
+                        f"The 'out_name' of dimension / coordinate '{dimCT}' of the variable '{var}' cannot be inferred from the CMOR table."
+                    )
+                    continue
+                # Get required coordinate values from CMOR table
+                dim_val = [
+                    str(dv)
+                    for dv in (
+                        dim_val_raw
+                        if isinstance(dim_val_raw, list)
+                        else dim_val_raw.split() if isinstance(dim_val_raw, str) else []
+                    )
+                ]
+                if dim_val and len(dim_val) == 1:
+                    if dim_on not in coords:
+                        if dim_on in dims:
+                            messages.append(
+                                f"The dimension '{dim_on}' of the variable '{var}' is a singleton dimension and should therefore be listed under the '{var}:coordinates' variable attribute and not be defined as dimension."
+                            )
+                        else:
+                            messages.append(
+                                f"The coordinate variable '{dim_on}' of the variable '{var}' is a singleton dimension and should therefore be listed under the '{var}:coordinates' variable attribute."
+                            )
+
+        # Check attributes
+        for vattr in [
+            "standard_name",
+            "long_name",
+            "units",
+            "cell_methods",
+            "cell_measures",
+            "comment",
+            "type",
+        ]:
+            vattrCT = self._get_var_attr(var, vattr, False)
+            if vattrCT:
+                if vattr == "comment":
+                    if vattrCT not in attrs.get("comment", ""):
+                        messages.append(
+                            f"The variable attribute '{var}:comment' needs to include the specified comment from the CMOR table."
+                        )
+                elif vattr == "type":
+                    reqdtype = self.dtypesdict.get(vattrCT, False)
+                    if vattrCT == "character" and reqdtype:
+                        if not self.xrds[var].dtype.kind == reqdtype:
+                            messages.append(
+                                f"The variable '{var}' has to be of type '{vattrCT}'."
+                            )
+                    elif reqdtype:
+                        if not self.xrds[var].dtype == reqdtype:
+                            messages.append(
+                                f"The variable '{var}' has to be of type '{vattrCT}' ({str(reqdtype)})."
+                            )
+                    else:
+                        raise ValueError(
+                            f"Unknown requested data type '{vattrCT}' for variable attribute '{var}:{vattr}'."
+                        )
+                else:
+                    if vattrCT != attrs.get(vattr, ""):
+                        messages.append(
+                            f"The variable attribute '{var}:{vattr} = '{attrs.get(vattr, 'unset')}' is not equivalent to the value specified in the CMOR table ('{vattrCT}')."
+                        )
+        if len(messages) == 0:
+            score += 1
+
+        return self.make_result(level, score, out_of, desc, messages)
+
+    def check_coordinate_definition(self, ds):
+        """Checks mandatory variable attributes for coordinate variables."""
+        desc = "Coordinate variable definition (CV)"
+        level = BaseCheck.HIGH
+        score = 0
+        out_of = 1
+        messages = []
+
+        # todo: check requested, requeseted__bounds, value, bounds_values,
+        #      climatology, stored_direction, valid_min/max, must_have_bounds
+        #      formula, formula_terms, z_factors, z_bounds_factors        #
+        for var in set(self.coords + list(self.bounds)):
+            attrs = ChainMap(
+                self.xrds[var].attrs,
+                self.xrds[var].encoding,
+            )
+            # dims = list(self.xrds[var].dims)
+        # Check attributes
+        for vattr in [
+            "standard_name",
+            "long_name",
+            "units",
+            "positive",
+            "axis",
+            "type",
+        ]:
+            vattrCT = self._get_var_attr(var, vattr, False)
+            if vattrCT:
+                if vattr == "comment":
+                    if vattrCT not in attrs.get("comment", ""):
+                        messages.append(
+                            f"The variable attribute '{var}:comment' needs to include the specified comment from the CMOR table."
+                        )
+                elif vattr == "type":
+                    reqdtype = self.dtypesdict.get(vattrCT, False)
+                    if vattrCT == "character" and reqdtype:
+                        if not self.xrds[var].dtype.kind == reqdtype:
+                            messages.append(
+                                f"The variable '{var}' has to be of type '{vattrCT}'."
+                            )
+                    elif reqdtype:
+                        if not self.xrds[var].dtype == reqdtype:
+                            messages.append(
+                                f"The variable '{var}' has to be of type '{vattrCT}' ({str(reqdtype)})."
+                            )
+                    else:
+                        raise ValueError(
+                            f"Unknown requested data type '{vattrCT}' for variable attribute '{var}:{vattr}'."
+                        )
+                else:
+                    if vattrCT != attrs.get(vattr, ""):
+                        messages.append(
+                            f"The variable attribute '{var}:{vattr} = '{attrs.get(vattr, 'unset')}' is not equivalent to the value specified in the CMOR table ('{vattrCT}')."
+                        )
+        if len(messages) == 0:
             score += 1
 
         return self.make_result(level, out_of, out_of, desc, messages)
