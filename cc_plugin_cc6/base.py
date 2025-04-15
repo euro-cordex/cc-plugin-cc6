@@ -15,6 +15,7 @@ from compliance_checker.base import BaseCheck, BaseNCCheck, Result
 from cc_plugin_cc6 import __version__
 
 from ._constants import deltdic
+from .utils import match_pattern_or_string
 
 get_tseconds = lambda t: t.total_seconds()  # noqa
 get_tseconds_vector = np.vectorize(get_tseconds)
@@ -91,6 +92,15 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
             "variable_id",
             "version",
         ]
+
+        # General
+        self.dtypesdict = {
+            "integer": np.int32,
+            "long": np.int64,
+            "real": np.float32,
+            "double": np.float64,
+            "character": "S",
+        }
 
     def _initialize_CV_info(self, tables_path):
         """Find and read CV and CMOR tables and extract basic information."""
@@ -374,46 +384,17 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
         # 6 # key (source_id) -> *dict key -> dict key (license_info) -> dict key (id, license) -> value
         # ########################################################################################
         # 0 (2nd+ level comparison) #
+        if self.debug:
+            print(el, val)
         if isinstance(el, str):
             if self.debug:
                 print(val, "->0")
-            return (
-                bool(
-                    re.fullmatch(
-                        el.replace("[[:digit:]]", r"\d")
-                        .replace("\\{", "{")
-                        .replace("\\}", "}"),
-                        str(val),
-                        flags=re.ASCII,
-                    )
-                ),
-                [],
-            )
+            return (match_pattern_or_string(el, str(val)), [], [el])
         # 1 and 2 #
         elif isinstance(el, list):
             if self.debug:
                 print(val, "->1 and 2")
-            if val not in el:
-
-                return (
-                    any(
-                        [
-                            bool(
-                                re.fullmatch(
-                                    eli.replace("[[:digit:]]", r"\d")
-                                    .replace("\\{", "{")
-                                    .replace("\\}", "}"),
-                                    str(val),
-                                    flags=re.ASCII,
-                                )
-                            )
-                            for eli in el
-                        ]
-                    ),
-                    [],
-                )
-            else:
-                return True, []
+            return (any([match_pattern_or_string(eli, str(val)) for eli in el]), [], el)
         # 3 to 6 #
         elif isinstance(el, dict):
             if self.debug:
@@ -423,18 +404,18 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
                 if isinstance(el[val], str):
                     if self.debug:
                         print(val, "->3")
-                    return True, []
+                    return True, [], []
                 # 4 to 6 #
                 elif isinstance(el[val], dict):
                     if self.debug:
                         print(val, "->4 to 6")
-                    return True, list(el[val].keys())
+                    return True, list(el[val].keys()), []
                 else:
                     raise ValueError(
                         f"Unknown CV structure for element: {el} and value {val}."
                     )
             else:
-                return False, []
+                return False, [], list(el.keys())
         # (Yet) unknown
         else:
             raise ValueError(
@@ -453,11 +434,17 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
                     print(attr, "1st level")
                 errmsg = f"""{errmsg_prefix}'{attr}' does not comply with the CV: '{dic2comp[attr] if dic2comp[attr] else 'unset'}'."""
                 checked[attr] = True
-                test, attrs_lvl2 = self._compare_CV_element(
+                test, attrs_lvl2, allowed_vals = self._compare_CV_element(
                     self.CV[attr], dic2comp[attr]
                 )
                 # If comparison fails
                 if not test:
+                    if len(allowed_vals) == 1:
+                        errmsg += f""" Expected value/pattern: '{allowed_vals[0]}'."""
+                    elif len(allowed_vals) > 3:
+                        errmsg += f""" Allowed values: {", ".join(f"'{av}'" for av in allowed_vals[0:3])}, ..."""
+                    elif len(allowed_vals) > 1:
+                        errmsg += f""" Allowed values: {", ".join(f"'{av}'" for av in allowed_vals)}."""
                     messages.append(errmsg)
                 # If comparison could not be processed completely, as the CV element is another dictionary
                 else:
@@ -468,15 +455,23 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
                             errmsg_lvl2 = f"""{errmsg_prefix}'{attr_lvl2}' does not comply with the CV: '{dic2comp[attr_lvl2] if dic2comp[attr_lvl2] else 'unset'}'."""
                             checked[attr_lvl2] = True
                             try:
-                                test, attrs_lvl3 = self._compare_CV_element(
-                                    self.CV[attr][dic2comp[attr]][attr_lvl2],
-                                    dic2comp[attr_lvl2],
+                                test, attrs_lvl3, allowed_vals = (
+                                    self._compare_CV_element(
+                                        self.CV[attr][dic2comp[attr]][attr_lvl2],
+                                        dic2comp[attr_lvl2],
+                                    )
                                 )
                             except ValueError:
                                 raise ValueError(
                                     f"Unknown CV structure for element {attr} -> {self.CV[attr][dic2comp[attr]][attr_lvl2]} / {attr_lvl2} -> {dic2comp[attr_lvl2]}."
                                 )
                             if not test:
+                                if len(allowed_vals) == 1:
+                                    errmsg_lvl2 += f""" Expected value/pattern: '{allowed_vals[0]}'."""
+                                elif len(allowed_vals) > 3:
+                                    errmsg_lvl2 += f""" Allowed values: {", ".join(f"'{av}'" for av in allowed_vals[0:3])}, ..."""
+                                elif len(allowed_vals) > 1:
+                                    errmsg_lvl2 += f""" Allowed values: {", ".join(f"'{av}'" for av in allowed_vals)}."""
                                 messages.append(errmsg_lvl2)
                             else:
                                 if len(attrs_lvl3) > 0:
@@ -709,12 +704,180 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
                 unknown.append(var)
         if len(unknown) > 0:
             messages.append(
-                f"(Coordinate) variable(s) {', '.join(unknown)} is/are not part of the CV."
+                f"(Coordinate) variable(s) {', '.join(unknown)} is/are not part of the CV or not compliant with the CF-Conventions."
             )
         else:
             score += 1
 
         return self.make_result(level, score, out_of, desc, messages)
+
+    def check_variable_definition(self, ds):
+        """Checks mandatory variable attributes of the main variable."""
+        desc = "Variable definition (CV)"
+        level = BaseCheck.HIGH
+        score = 0
+        out_of = 1
+        messages = []
+
+        # Do not check if no requested variable is identified
+        if len(self.varname) == 0:
+            return self.make_result(level, out_of, out_of, desc, messages)
+
+        var = self.varname[0]
+        attrs = ChainMap(
+            self.xrds[self.varname[0]].attrs,
+            self.xrds[self.varname[0]].encoding,
+        )
+        dims = list(self.xrds[self.varname[0]].dims)
+        coords_raw = attrs.get("coordinates", "")
+        coords = [
+            str(cv)
+            for cv in (
+                coords_raw
+                if isinstance(coords_raw, list)
+                else coords_raw.split() if isinstance(coords_raw, str) else []
+            )
+        ]
+
+        # Check dimensions & coordinates attribute
+        dimsCT = self._get_var_attr(var, "dimensions", [])
+        if dimsCT:
+            if isinstance(dimsCT, str):
+                dimsCT = dimsCT.split()
+            for dimCT in dimsCT:
+                # The coordinate out_name must be in one of the following
+                # - in the variable dimensions
+                # - in the variable attribute "coordinates"
+                # todo: generic levels like "alevel" / "olevel" / "alevhalf"
+                diminfo = self.CTcoords["axis_entry"].get(dimCT, {})
+                dim_on = diminfo.get("out_name", "")
+                dim_val_raw = diminfo.get("value", "")
+                if not dim_on:
+                    messages.append(
+                        f"The 'out_name' of dimension / coordinate '{dimCT}' of the variable '{var}' cannot be inferred from the CMOR table."
+                    )
+                    continue
+                # Get required coordinate values from CMOR table
+                dim_val = [
+                    str(dv)
+                    for dv in (
+                        dim_val_raw
+                        if isinstance(dim_val_raw, list)
+                        else dim_val_raw.split() if isinstance(dim_val_raw, str) else []
+                    )
+                ]
+                if dim_val and len(dim_val) == 1:
+                    if dim_on not in coords:
+                        if dim_on in dims:
+                            messages.append(
+                                f"The dimension '{dim_on}' of the variable '{var}' is a singleton dimension and should therefore be listed under the '{var}:coordinates' variable attribute and not be defined as dimension."
+                            )
+                        else:
+                            messages.append(
+                                f"The coordinate variable '{dim_on}' of the variable '{var}' is a singleton dimension and should therefore be listed under the '{var}:coordinates' variable attribute."
+                            )
+
+        # Check attributes
+        for vattr in [
+            "standard_name",
+            "long_name",
+            "units",
+            "cell_methods",
+            "cell_measures",
+            "comment",
+            "type",
+        ]:
+            vattrCT = self._get_var_attr(var, vattr, False)
+            if vattrCT:
+                if vattr == "comment":
+                    if vattrCT not in attrs.get("comment", ""):
+                        messages.append(
+                            f"The variable attribute '{var}:comment' needs to include the specified comment from the CMOR table."
+                        )
+                elif vattr == "type":
+                    reqdtype = self.dtypesdict.get(vattrCT, False)
+                    if vattrCT == "character" and reqdtype:
+                        if not self.xrds[var].dtype.kind == reqdtype:
+                            messages.append(
+                                f"The variable '{var}' has to be of type '{vattrCT}'."
+                            )
+                    elif reqdtype:
+                        if not self.xrds[var].dtype == reqdtype:
+                            messages.append(
+                                f"The variable '{var}' has to be of type '{vattrCT}' ({str(reqdtype)})."
+                            )
+                    else:
+                        raise ValueError(
+                            f"Unknown requested data type '{vattrCT}' for variable attribute '{var}:{vattr}'."
+                        )
+                else:
+                    if vattrCT != attrs.get(vattr, ""):
+                        messages.append(
+                            f"The variable attribute '{var}:{vattr} = '{attrs.get(vattr, 'unset')}' is not equivalent to the value specified in the CMOR table ('{vattrCT}')."
+                        )
+        if len(messages) == 0:
+            score += 1
+
+        return self.make_result(level, score, out_of, desc, messages)
+
+    def check_coordinate_definition(self, ds):
+        """Checks mandatory variable attributes for coordinate variables."""
+        desc = "Coordinate variable definition (CV)"
+        level = BaseCheck.HIGH
+        score = 0
+        out_of = 1
+        messages = []
+
+        # todo: check requested, requeseted__bounds, value, bounds_values,
+        #      climatology, stored_direction, valid_min/max, must_have_bounds
+        #      formula, formula_terms, z_factors, z_bounds_factors        #
+        for var in set(self.coords + list(self.bounds)):
+            attrs = ChainMap(
+                self.xrds[var].attrs,
+                self.xrds[var].encoding,
+            )
+            # dims = list(self.xrds[var].dims)
+        # Check attributes
+        for vattr in [
+            "standard_name",
+            "long_name",
+            "units",
+            "positive",
+            "axis",
+            "type",
+        ]:
+            vattrCT = self._get_var_attr(var, vattr, False)
+            if vattrCT:
+                if vattr == "comment":
+                    if vattrCT not in attrs.get("comment", ""):
+                        messages.append(
+                            f"The variable attribute '{var}:comment' needs to include the specified comment from the CMOR table."
+                        )
+                elif vattr == "type":
+                    reqdtype = self.dtypesdict.get(vattrCT, False)
+                    if vattrCT == "character" and reqdtype:
+                        if not self.xrds[var].dtype.kind == reqdtype:
+                            messages.append(
+                                f"The variable '{var}' has to be of type '{vattrCT}'."
+                            )
+                    elif reqdtype:
+                        if not self.xrds[var].dtype == reqdtype:
+                            messages.append(
+                                f"The variable '{var}' has to be of type '{vattrCT}' ({str(reqdtype)})."
+                            )
+                    else:
+                        raise ValueError(
+                            f"Unknown requested data type '{vattrCT}' for variable attribute '{var}:{vattr}'."
+                        )
+                else:
+                    if vattrCT != attrs.get(vattr, ""):
+                        messages.append(
+                            f"The variable attribute '{var}:{vattr} = '{attrs.get(vattr, 'unset')}' is not equivalent to the value specified in the CMOR table ('{vattrCT}')."
+                        )
+        if len(messages) == 0:
+            score += 1
+
+        return self.make_result(level, out_of, out_of, desc, messages)
 
     def check_required_global_attributes(self, ds):
         """Checks presence of mandatory global attributes."""
@@ -777,7 +940,7 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
         """Checks missing value."""
         desc = "Missing values"
         level = BaseCheck.HIGH
-        out_of = 3
+        out_of = 6
         score = 0
         messages = []
 
@@ -789,6 +952,7 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
             mval = ChainMap(
                 self.xrds[self.varname[0]].attrs, self.xrds[self.varname[0]].encoding
             ).get("missing_value", None)
+            # Check that both are set, and if so, are equal
             if fval is None or mval is None:
                 messages.append(
                     f"Both, 'missing_value' and '_FillValue' have to be set for variable '{self.varname[0]}'."
@@ -801,21 +965,53 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
                 )
             else:
                 score += 2
-            if self.missing_value and (fval or mval):
+
+            # Check that missing value is equal to requested value and has the correct dtype
+            if not mval:
+                mval = fval
+            if self.missing_value and mval:
                 if not (
                     np.isclose(self.missing_value, fval)
                     and np.isclose(self.missing_value, mval)
                 ):
                     messages.append(
                         f"The variable attributes '_FillValue' and/or 'missing_value' differ from "
-                        f"the requested value ('{self.missing_value}'): '{fval}' and/or '{mval}', respectively."
+                        f"the requested value '{self.missing_value}'."
                     )
                 else:
                     score += 1
             else:
                 score += 1
+
+            if fval:
+                dtype_fval = fval.dtype
+                dtype_mval = mval.dtype
+                if dtype_fval != dtype_mval:
+                    messages.append(
+                        f"The variable attributes '_FillValue' and 'missing_value' have different dtypes: "
+                        f"'{dtype_fval}' and '{dtype_mval}', respectively."
+                    )
+                else:
+                    score += 1
+                if (
+                    dtype_fval != self.xrds[self.varname[0]].dtype
+                    or dtype_mval != self.xrds[self.varname[0]].dtype
+                ):
+                    messages.append(
+                        "The variable attributes '_FillValue' and/or 'missing_value' have different data types than the variable."
+                    )
+                else:
+                    score += 1
+                if dtype_fval != np.float32 or dtype_mval != np.float32:
+                    messages.append(
+                        "The variable attributes '_FillValue' and/or 'missing_value' do not have 'float' as data type."
+                    )
+                else:
+                    score += 1
+            else:
+                score += 3
         else:
-            score += 3
+            score += 6
 
         return self.make_result(level, score, out_of, desc, messages)
 
