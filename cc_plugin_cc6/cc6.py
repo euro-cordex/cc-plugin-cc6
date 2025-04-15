@@ -103,6 +103,60 @@ class CORDEXCMIP6(MIPCVCheck):
 
         return self.make_result(level, score, out_of, desc, messages)
 
+    def check_data_types(self, ds):
+        """Checks if the variable and coordinate data types are correct."""
+        desc = "Incorrect data type (Archive Specifications)"
+        level = BaseCheck.HIGH
+        out_of = 2
+        score = 0
+        messages = []
+
+        # Coordinate variables
+        # - ensure that all coordinate variables are of double precision
+        # - besides ps/orog as part of formula to describe native vertical axis
+        # - grid_mapping is tested in a separate check
+        for c in set(self.coords) | set(self.bounds):
+            if self.xrds[c].dtype != np.float64:
+                if c == getattr(ds.variables[self.varname[0]], "grid_mapping", None):
+                    pass
+                elif (
+                    c
+                    in {
+                        k: self.xrds.cf.formula_terms.get(k, None)
+                        for k in ("ps", "orog")
+                    }.values()
+                ):
+                    pass
+                else:
+                    messages.append(
+                        f"The coordinate variable '{c}' must be of double precision with the data type 'float64' / 'double'."
+                    )
+            elif (
+                c
+                in {
+                    k: self.xrds.cf.formula_terms.get(k, None) for k in ("ps", "orog")
+                }.values()
+                and self.xrds[c].dtype != np.float32
+            ):
+                messages.append(
+                    f"The auxiliary coordinate variable '{c}' must be of single precision with the data type 'float32' / 'float'."
+                )
+        if len(messages) == 0:
+            score += 1
+
+        # Main variable needs to be of single precision
+        if len(self.varname) > 0:
+            if self.xrds[self.varname[0]].dtype != np.float32:
+                messages.append(
+                    f"The main variable '{self.varname[0]}' must be of single precision with the data type 'float32' / 'float'."
+                )
+            else:
+                score += 1
+        else:
+            score += 1
+
+        return self.make_result(level, score, out_of, desc, messages)
+
     def check_compression(self, ds):
         """Checks if the main variable is compressed in the recommended way."""
         desc = "Compression"
@@ -126,14 +180,14 @@ class CORDEXCMIP6(MIPCVCheck):
                 "and enabled 'shuffle' option."
             )
             if ds[varname].filters()["complevel"] < 1:
-                messages.append(" The data is uncompressed.")
+                messages[-1] += " The data is uncompressed."
             elif ds[varname].filters()["complevel"] > 1:
-                messages.append(
+                messages[-1] += (
                     " The data is compressed with a higher 'deflate level' than recommended, "
                     "this can lead to performance issues when accessing the data."
                 )
             if ds[varname].filters()["shuffle"] is False:
-                messages.append(" The 'shuffle' option is disabled.")
+                messages[-1] +=" The 'shuffle' option is disabled."
         else:
             score += 1
 
