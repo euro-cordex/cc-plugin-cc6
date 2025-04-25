@@ -9,14 +9,14 @@ TEST_DATA_CACHE_DIR = os.path.expanduser("~/.cc6_testdata")
 TAS_REMO = os.path.join(
     TEST_DATA_CACHE_DIR,
     TEST_DATA_REPO_BRANCH,
-    "CORDEX/CMIP6/DD/EUR-12/GERICS/ERA5/evaluation/r1i1p1f1/REMO2020/v1/mon/tas/v20240529",
-    "tas_EUR-12_ERA5_evaluation_r1i1p1f1_GERICS_REMO2020_v1_mon_200001-200012.nc",
+    "CORDEX-CMIP6/DD/EUR-12/GERICS/ERA5/evaluation/r1i1p1f1/REMO2020-2-2/v1-r1/mon/tas/v20241120",
+    "tas_EUR-12_ERA5_evaluation_r1i1p1f1_GERICS_REMO2020-2-2_v1-r1_mon_201901-202012.nc",
 )
 FXOROG_REMO = os.path.join(
     TEST_DATA_CACHE_DIR,
     TEST_DATA_REPO_BRANCH,
-    "CORDEX/CMIP6/DD/EUR-12/GERICS/ERA5/evaluation/r1i1p1f1/REMO2020/v1/fx/orog/v20240529",
-    "orog_EUR-12_ERA5_evaluation_r1i1p1f1_GERICS_REMO2020_v1_fx.nc",
+    "CORDEX-CMIP6/DD/EUR-12/GERICS/ERA5/evaluation/r1i1p1f1/REMO2020-2-2/v1-r1/fx/orog/v20241120",
+    "orog_EUR-12_ERA5_evaluation_r1i1p1f1_GERICS_REMO2020-2-2_v1-r1_fx.nc",
 )
 
 DATASETS = {
