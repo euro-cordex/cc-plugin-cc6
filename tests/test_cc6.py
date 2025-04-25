@@ -47,18 +47,18 @@ cc6_checkdict = mip_checkdict | cc6_checkdict
 # Expected check failures
 expected_failures = dict()
 expected_failures["TAS_REMO"] = {
-    "check_version_realization": [
-        "DRS filename building block 'version_realization' does not comply",
-        "DRS path building block 'version_realization' does not comply",
-        "Global attribute 'version_realization' does not comply",
-    ],
+    # "check_version_realization": [
+    #     "DRS filename building block 'version_realization' does not comply",
+    #     "DRS path building block 'version_realization' does not comply",
+    #     "Global attribute 'version_realization' does not comply",
+    # ],
     "check_compression": [
         "It is recommended that data should be compressed with a 'deflate level' of '1' and enabled 'shuffle' option."
         " The 'shuffle' option is disabled.",
     ],
-    "check_version_realization_info": [
-        "The global attribute 'version_realization_info' is missing. It is however recommended"
-    ],
+    # "check_version_realization_info": [
+    #     "The global attribute 'version_realization_info' is missing. It is however recommended"
+    # ],
     "check_horizontal_axes_bounds": [
         "It is recommended for the variables 'rlat' and 'rlon' or 'x' and 'y' to have bounds defined."
     ],
@@ -67,18 +67,18 @@ expected_failures["TAS_REMO"] = {
     ],
 }
 expected_failures["FXOROG_REMO"] = {
-    "check_version_realization": [
-        "DRS filename building block 'version_realization' does not comply",
-        "DRS path building block 'version_realization' does not comply",
-        "Global attribute 'version_realization' does not comply",
-    ],
+    # "check_version_realization": [
+    #     "DRS filename building block 'version_realization' does not comply",
+    #     "DRS path building block 'version_realization' does not comply",
+    #     "Global attribute 'version_realization' does not comply",
+    # ],
     "check_compression": [
         "It is recommended that data should be compressed with a 'deflate level' of '1' and enabled 'shuffle' option."
         " The 'shuffle' option is disabled.",
     ],
-    "check_version_realization_info": [
-        "The global attribute 'version_realization_info' is missing. It is however recommended"
-    ],
+    # "check_version_realization_info": [
+    #     "The global attribute 'version_realization_info' is missing. It is however recommended"
+    # ],
     "check_horizontal_axes_bounds": [
         "It is recommended for the variables 'rlat' and 'rlon' or 'x' and 'y' to have bounds defined."
     ],
