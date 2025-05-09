@@ -21,6 +21,7 @@ mip_checkdict = {
     "check_time_range": "Time range consistency",
     "check_version_date": "version_date (CMOR)",
     "check_creation_date": "creation_date (CMOR)",
+    "check_variable_attributes": "Variable attributes (CV)",
 }
 cc6_checkdict = {
     "check_format": "File format",
@@ -35,44 +36,54 @@ cc6_checkdict = {
     "check_driving_attributes": "Driving attributes (Archive Specifications)",
     "check_domain_id": "domain_id (CV)",
     "check_institution": "institution (CV)",
+    "check_version_realization": "version_realization (Archive Specifications)",
+    "check_grid_mapping": "grid_mapping label (Archive Specifications)",
+    "check_lon_value_range": "Longitude value range (Archive Specifications)",
+    "check_lat_lon_bounds": "Presence of latitude and longitude bounds (Archive Specifications)",
+    "check_horizontal_axes_bounds": "Presence of horizontal axes bounds (Archive Specifications)",
 }
 cc6_checkdict = mip_checkdict | cc6_checkdict
 
 # Expected check failures
 expected_failures = dict()
 expected_failures["TAS_REMO"] = {
-    "check_drs_CV": [
-        "DRS path building blocks could not be checked: 'version_realization'.",
-        "DRS filename building blocks could not be checked: 'version_realization'.",
-    ],
+    # "check_version_realization": [
+    #     "DRS filename building block 'version_realization' does not comply",
+    #     "DRS path building block 'version_realization' does not comply",
+    #     "Global attribute 'version_realization' does not comply",
+    # ],
     "check_compression": [
-        "It is recommended that data should be compressed with a 'deflate level' of '1' and enabled 'shuffle' option.",
-        "The 'shuffle' option is disabled.",
+        "It is recommended that data should be compressed with a 'deflate level' of '1' and enabled 'shuffle' option."
+        " The 'shuffle' option is disabled.",
     ],
-    "check_required_global_attributes_CV": [
-        "Global attribute 'source' does not comply with the CV: 'REMO regional model (2022)'.",
-        "Required global attributes could not be checked against CV: 'version_realization'.",
+    # "check_version_realization_info": [
+    #     "The global attribute 'version_realization_info' is missing. It is however recommended"
+    # ],
+    "check_horizontal_axes_bounds": [
+        "It is recommended for the variables 'rlat' and 'rlon' or 'x' and 'y' to have bounds defined."
     ],
-    "check_time_chunking": [],
-    "check_version_realization_info": [
-        "The global attribute 'version_realization_info' is missing. It is however recommended"
+    "check_grid_mapping": [
+        "The grid_mapping variable 'rotated_latitude_longitude' needs to include information regarding the shape and size of the Earth"
     ],
 }
 expected_failures["FXOROG_REMO"] = {
-    "check_drs_CV": [
-        "DRS path building blocks could not be checked: 'version_realization'.",
-        "DRS filename building blocks could not be checked: 'version_realization'.",
-    ],
+    # "check_version_realization": [
+    #     "DRS filename building block 'version_realization' does not comply",
+    #     "DRS path building block 'version_realization' does not comply",
+    #     "Global attribute 'version_realization' does not comply",
+    # ],
     "check_compression": [
-        "It is recommended that data should be compressed with a 'deflate level' of '1' and enabled 'shuffle' option.",
-        "The 'shuffle' option is disabled.",
+        "It is recommended that data should be compressed with a 'deflate level' of '1' and enabled 'shuffle' option."
+        " The 'shuffle' option is disabled.",
     ],
-    "check_required_global_attributes_CV": [
-        "Global attribute 'source' does not comply with the CV: 'REMO regional model (2022)'.",
-        "Required global attributes could not be checked against CV: 'version_realization'.",
+    # "check_version_realization_info": [
+    #     "The global attribute 'version_realization_info' is missing. It is however recommended"
+    # ],
+    "check_horizontal_axes_bounds": [
+        "It is recommended for the variables 'rlat' and 'rlon' or 'x' and 'y' to have bounds defined."
     ],
-    "check_version_realization_info": [
-        "The global attribute 'version_realization_info' is missing. It is however recommended"
+    "check_grid_mapping": [
+        "The grid_mapping variable 'rotated_latitude_longitude' needs to include information regarding the shape and size of the Earth"
     ],
 }
 

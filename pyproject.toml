@@ -33,6 +33,7 @@ dependencies = [
   "compliance-checker>=5.1.2",
   "netCDF4",
   "pandas",
+  "pooch",
   "xarray"
 ]
 dynamic = [
