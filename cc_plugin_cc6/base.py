@@ -1367,8 +1367,8 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
             tindex_f = tindex.where(tf > 0, drop=True)
             for tstep in range(0, th.size):
                 messages.append(
-                    f"Discontinuity in time axis (frequency: '{self.frequency}') at index '{tindex_f[tstep]}'"
-                    f" ('{cftime.num2date(tg.values[tstep], calendar=self.calendar, units=self.timeunits)}'):"
+                    f"Discontinuity in time axis (frequency: '{self.frequency}') at index '{tindex_f.isel(time=tstep).item()}'"
+                    f" ('{cftime.num2date(tg.isel(time=tstep).item(), calendar=self.calendar, units=self.timeunits)}'):"
                     f" delta-t {printtimedelta(th.values[tstep])} from next timestep!"
                 )
 
@@ -1451,16 +1451,17 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
                     )
 
         # Check if time values are centered within their respective bounds
+        tol = 10e-10
         delt = (
             self.time.values[:]
             + self.time.values[:]
             - time_bnds[:, 1]
             - time_bnds[:, 0]
         )
-        if np.all(delt == 0):
+        if np.all(np.abs(delt) <= tol):
             score += 1
         else:
-            uncentered_idx = np.where(delt != 0)[0]
+            uncentered_idx = np.where(np.abs(delt) > tol)[0]
             for ui in uncentered_idx:
                 messages.append(
                     f"For timestep with index '{ui}' ('"
