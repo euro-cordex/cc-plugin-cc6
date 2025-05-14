@@ -319,19 +319,36 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
 
     def _write_consistency_output(self):
         """Write output for consistency checks across files."""
-        # Dictionary of global attributes
+        # Dictionaries of global attributes and their data types
         required_attributes = self.CV.get("required_global_attributes", {})
-        file_attrs = {
+        file_attrs_req = {
             k: str(v) for k, v in self.xrds.attrs.items() if k in required_attributes
         }
+        file_attrs_nreq = {
+            k: str(v)
+            for k, v in self.xrds.attrs.items()
+            if k not in required_attributes
+            if k not in ["history"]
+        }
+        file_attrs_dtypes = {
+            k: type(v).__qualname__ for k, v in self.xrds.attrs.items()
+        }
         for k in required_attributes:
-            if k not in file_attrs:
-                file_attrs[k] = "unset"
-        # Dictionary of variable attributes
+            if k not in file_attrs_req:
+                file_attrs_req[k] = "unset"
+            if k not in file_attrs_dtypes:
+                file_attrs_dtypes[k] = "unset"
+        # Dictionaries of variable attributes and their data types
         var_attrs = {}
+        var_attrs_dtypes = {}
         for var in list(self.xrds.data_vars.keys()) + list(self.xrds.coords.keys()):
             var_attrs[var] = {
                 key: str(value)
+                for key, value in self.xrds[var].attrs.items()
+                if key not in ["history"]
+            }
+            var_attrs_dtypes[var] = {
+                key: type(value).__qualname__
                 for key, value in self.xrds[var].attrs.items()
                 if key not in ["history"]
             }
@@ -363,12 +380,27 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
             coord_checksums[coord_var] = md5(
                 str(self.xrds[coord_var].values.tobytes()).encode("utf-8")
             ).hexdigest()
+        # Dictionary of dimension sizes
+        dims = dict(self.xrds.sizes)
+        # Do not compare time dimension size, only name
+        if self.time is not None:
+            dimt = self.time.dims[0]
+            dims[dimt] = "n"
+        # Dictionary of variable data types
+        var_dtypes = {}
+        for var in list(self.xrds.data_vars.keys()) + list(self.xrds.coords.keys()):
+            var_dtypes[var] = str(self.xrds[var].dtype)
         # Write combined dictionary
         with open(self.consistency_output, "w") as f:
             json.dump(
                 {
-                    "global_attributes": file_attrs,
+                    "global_attributes": file_attrs_req,
+                    "global_attributes_non_required": file_attrs_nreq,
+                    "global_attributes_dtypes": file_attrs_dtypes,
                     "variable_attributes": var_attrs,
+                    "variable_attributes_dtypes": var_attrs_dtypes,
+                    "variable_dtypes": var_dtypes,
+                    "dimensions": dims,
                     "coordinates": coord_checksums,
                     "time_info": time_info,
                 },
