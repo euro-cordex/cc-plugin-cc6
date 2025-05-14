@@ -216,6 +216,19 @@ class CORDEXCMIP6(MIPCVCheck):
             messages.append(f"Frequency '{self.frequency}' not supported.")
             return self.make_result(level, score, out_of, desc, messages)
 
+        # Expected last simulation year
+        # -> suppress error for last year of a simulation
+        #    if it is the "official" last year
+        expected_last_sim_year = {
+            "evaluation": 2024,
+            "historical": 2014,
+            "ssp119": 2100,
+            "ssp126": 2100,
+            "ssp245": 2100,
+            "ssp370": 2100,
+            "ssp585": 2100,
+        }
+
         # Get the time dimension, calendar and units
         if self.time is None:
             messages.append("Coordinate variable 'time' not found in file.")
@@ -255,7 +268,6 @@ class CORDEXCMIP6(MIPCVCheck):
                 year, 1, 1, 0, 0, 0, calendar=self.calendar
             )
         else:
-
             year = first_time.year + 1
             while str(year)[-1] != "1":
                 year += 1
@@ -298,6 +310,15 @@ class CORDEXCMIP6(MIPCVCheck):
         else:
             messages.append(f"Cannot interpret cell_methods '{self.cell_methods}'.")
 
+        # Consider experiment end
+        exp_last_year = expected_last_sim_year.get(
+            self._get_attr("driving_experiment_id", None), None
+        )
+        if exp_last_year:
+            expected_end_date_exp = expected_end_date.replace(year=exp_last_year)
+        else:
+            expected_end_date_exp = expected_end_date
+
         if len(messages) == 0:
             errmsg = (
                 f"{'Apart from the first and last files of a timeseries ' if nyears>1 else ''}'{nyears}' "
@@ -311,7 +332,7 @@ class CORDEXCMIP6(MIPCVCheck):
                     + errmsg
                 )
             # Check if the last time is equal to the expected end date
-            if last_time != expected_end_date:
+            if last_time != expected_end_date and last_time != expected_end_date_exp:
                 messages.append(
                     f"The last timestep differs from expectation ('{expected_end_date}'): '{last_time}'. "
                     + errmsg
