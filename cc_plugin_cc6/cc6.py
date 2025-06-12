@@ -117,7 +117,9 @@ class CORDEXCMIP6(MIPCVCheck):
         # - grid_mapping is tested in a separate check
         for c in set(self.coords) | set(self.bounds):
             if self.xrds[c].dtype != np.float64:
-                if c == getattr(ds.variables[self.varname[0]], "grid_mapping", None):
+                if len(self.varname) > 0 and c == getattr(
+                    ds.variables[self.varname[0]], "grid_mapping", None
+                ):
                     pass
                 elif (
                     c

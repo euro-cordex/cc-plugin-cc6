@@ -235,7 +235,12 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
             self.timeunits = None
             self.timebnds = None
             self.timedec = None
-            self.time_invariant_vars = []
+            self.time_invariant_vars = [
+                var
+                for var in list(self.xrds.data_vars.keys())
+                + list(self.xrds.coords.keys())
+                if var not in self.varname
+            ]
 
     def _initialize_coords_info(self):
         """Get information about the infile coordinates."""
