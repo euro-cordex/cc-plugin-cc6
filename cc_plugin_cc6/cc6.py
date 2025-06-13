@@ -658,13 +658,13 @@ class CORDEXCMIP6(MIPCVCheck):
         return self.make_result(level, score, out_of, desc, messages)
 
     def check_driving_source(self, ds):
-        """Checks if driving source is (correctly) defined."""
+        """Checks if global attribute driving_source is (correctly) defined."""
         desc = "driving_source (CV)"
         out_of = 2
         score = 0
         messages = []
         # Level varies
-        # - if driving source is not defined, it is recommended to define it
+        # - if driving_source is not defined, it is recommended to define it
         # - if it is incorrectly defined, it is required to correct it
 
         # Test if driving_source is defined
