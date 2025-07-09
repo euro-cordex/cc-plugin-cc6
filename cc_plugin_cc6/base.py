@@ -35,6 +35,16 @@ def printtimedelta(d):
         return f"{d} seconds"
 
 
+def flatten(lst):
+    result = []
+    for item in lst:
+        if isinstance(item, list):
+            result.extend(flatten(item))
+        else:
+            result.append(item)
+    return result
+
+
 class MIPCVCheckBase(BaseCheck):
     register_checker = False
     _cc_spec = "mip"
@@ -78,6 +88,91 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
             self._initialize_coords_info()
             if self.consistency_output:
                 self._write_consistency_output()
+        # if only the time checks should be run (so no verification against CV / MIP tables)
+        elif self.options.get("time_checks_only", False):
+            self.varname = [
+                var
+                for var in flatten(list(self.xrds.cf.standard_names.values()))
+                if var
+                not in flatten(
+                    list(self.xrds.cf.coordinates.values())
+                    + list(self.xrds.cf.axes.values())
+                    + list(self.xrds.cf.bounds.values())
+                    + list(self.xrds.cf.formula_terms.values())
+                )
+            ]
+            self._initialize_time_info()
+            self._initialize_coords_info()
+            self.frequency = self._get_attr("frequency")
+            if self.varname != []:
+                self.cell_methods = self.xrds[self.varname[0]].attrs.get(
+                    "cell_methods", "unknown"
+                )
+            else:
+                self.cell_methods = "unknown"
+            self.drs_fn = {}
+            if self.frequency == "unknown" and self.time is not None:
+                if self.time.sizes[self.time.dims[0]] > 1 and 1 == 2:
+                    for ifreq in [
+                        fkey
+                        for fkey in deltdic.keys()
+                        if "max" not in fkey and "min" not in fkey
+                    ]:
+                        try:
+                            intv = abs(
+                                get_tseconds(
+                                    cftime.num2date(
+                                        self.time.values[1],
+                                        units=self.timeunits,
+                                        calendar=self.calendar,
+                                    )
+                                    - cftime.num2date(
+                                        self.time.values[0],
+                                        units=self.timeunits,
+                                        calendar=self.calendar,
+                                    )
+                                )
+                            )
+                            if (
+                                intv <= deltdic[ifreq + "max"]
+                                and intv >= deltdic[ifreq + "min"]
+                            ):
+                                self.frequency = ifreq
+                                break
+                        except (AttributeError, ValueError):
+                            continue
+                elif self.timebnds and len(self.xrds[self.timebnds].dims) == 2:
+                    for ifreq in [
+                        fkey
+                        for fkey in deltdic.keys()
+                        if "max" not in fkey and "min" not in fkey
+                    ]:
+                        try:
+                            intv = abs(
+                                get_tseconds(
+                                    cftime.num2date(
+                                        self.xrds[self.timebnds].values[0, 1],
+                                        units=self.timeunits,
+                                        calendar=self.calendar,
+                                    )
+                                    - cftime.num2date(
+                                        self.xrds[self.timebnds].values[0, 0],
+                                        units=self.timeunits,
+                                        calendar=self.calendar,
+                                    )
+                                )
+                            )
+                            if (
+                                intv <= deltdic[ifreq + "max"]
+                                and intv >= deltdic[ifreq + "min"]
+                            ):
+                                self.frequency = ifreq
+                                break
+                        except (AttributeError, ValueError):
+                            continue
+            if self.consistency_output:
+                self._write_consistency_output()
+        # in case of general "mip" checks, the path to the CMOR tables need to be specified
         elif self._cc_spec == "mip":
             raise Exception(
                 "ERROR: No 'tables' option specified. Cannot initialize CV and MIP tables."
@@ -146,7 +241,6 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
                 )
             for key in ["table_id"]:
                 if key not in self.CT[table]["Header"]:
-                    print(table, key)
                     raise KeyError(
                         f"CMOR table '{table}' misses the key '{key}' in the header information."
                     )
@@ -304,13 +398,6 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
                     return default
         return default
 
-    def _infer_frequency(self):
-        """Infer frequency from given time dimension"""
-        try:
-            return xr.infer_freq(self.timedec)
-        except ValueError:
-            return "unknown"
-
     def _read_CV(self, path, table_prefix, table_name):
         """Reads the specified CV table."""
         table_path = Path(path, f"{table_prefix}_{table_name}.json")
@@ -325,7 +412,10 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
     def _write_consistency_output(self):
         """Write output for consistency checks across files."""
         # Dictionaries of global attributes and their data types
-        required_attributes = self.CV.get("required_global_attributes", {})
+        if self.options.get("time_checks_only", False):
+            required_attributes = {}
+        else:
+            required_attributes = self.CV.get("required_global_attributes", {})
         file_attrs_req = {
             k: str(v) for k, v in self.xrds.attrs.items() if k in required_attributes
         }
@@ -1356,8 +1446,11 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
 
         # Check if frequency is known and supported
         #  (as defined in deltdic)
-        if self.frequency in ["unknown", "fx"]:
+        if self.frequency == "fx":
             return self.make_result(level, out_of, out_of, desc, messages)
+        elif self.frequency == "unknown":
+            messages.append("Cannot test time continuity: Frequency not defined.")
+            return self.make_result(level, score, out_of, desc, messages)
         if self.frequency not in deltdic.keys():
             messages.append(f"Frequency '{self.frequency}' not supported.")
             return self.make_result(level, score, out_of, desc, messages)
@@ -1429,7 +1522,9 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
             messages.append(f"Frequency '{self.frequency}' not supported.")
             return self.make_result(level, score, out_of, desc, messages)
         if self.cell_methods == "unknown":
-            if len(self.varname) > 0:
+            if len(self.varname) > 0 and not self.options.get(
+                "time_checks_only", False
+            ):
                 messages.append(
                     f"MIP table for '{self.varname[0]}' could not be identified"
                     " and thus no 'cell_methods' attribute could be read."
@@ -1570,7 +1665,19 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
 
         # If time_range is not part of the file name structure, abort
         if "time_range" not in self.drs_fn:
-            return self.make_result(level, out_of, out_of, desc, messages)
+            # Attempt to infer time range from filename if only timechecks are to be run:
+            if self.options.get("time_checks_only", False):
+                matches = list(
+                    filter(
+                        re.compile(r"^\d{1,}-?\d*$").match,
+                        os.path.splitext(os.path.basename(self.filepath))[0].split("_"),
+                    )
+                )
+                if len(matches) != 1:
+                    return self.make_result(level, out_of, out_of, desc, messages)
+                self.drs_fn = {"time_range": matches[0]}
+            else:
+                return self.make_result(level, out_of, out_of, desc, messages)
 
         # Check if frequency is identified and data is not time invariant
         #  (as defined in deltdic)

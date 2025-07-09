@@ -26,7 +26,9 @@ class CORDEXCMIP6(MIPCVCheck):
 
     def setup(self, dataset):
         super().setup(dataset)
-        if not self.options.get("tables", False):
+        if not self.options.get("tables", False) and not self.options.get(
+            "time_checks_only", False
+        ):
             if self.debug:
                 print("Downloading CV and CMOR tables.")
             tables_path = self.options.get(
@@ -59,8 +61,8 @@ class CORDEXCMIP6(MIPCVCheck):
             self._initialize_CV_info(tables_path)
             self._initialize_time_info()
             self._initialize_coords_info()
-        if self.consistency_output:
-            self._write_consistency_output()
+            if self.consistency_output:
+                self._write_consistency_output()
 
         # Specify the global attributes that will be checked by a specific check
         #  rather than a general check against the value given in the CV
