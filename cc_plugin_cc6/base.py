@@ -315,9 +315,6 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
             # The entire checker crashes in case of invalid time units
             # todo: catch a possible exception in base._initialize_time_info
             #       and report the problem in any check method
-            self.timedec = xr.decode_cf(
-                self.xrds.copy(deep=True), decode_times=True, use_cftime=True
-            ).cf["time"]
             self.time_invariant_vars = [
                 var
                 for var in list(self.xrds.data_vars.keys())
@@ -328,7 +325,6 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
             self.calendar = None
             self.timeunits = None
             self.timebnds = None
-            self.timedec = None
             self.time_invariant_vars = [
                 var
                 for var in list(self.xrds.data_vars.keys())
