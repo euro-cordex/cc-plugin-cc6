@@ -1062,12 +1062,33 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
             )
             return {}
         elif len(pmatches) > 1:
-            messages.append(
-                f"The required dimension / coordinate '{dimCT}' of variable '{var}' is not defined explicitly. Multiple generic level matches ({', '.join(pmatches)}) could be identified in the input file via standard_name while only one is required."
-            )
-            return {}
+            # Try to select further by long_name and formula:
+            plfmatches = list()
+            for pmatch in pmatches:
+                if self.CTcoords["axis_entry"][pmatch].get("long_name") == self.xrds[
+                    self.xrds.cf.standard_names[
+                        self.CTcoords["axis_entry"][pmatch].get("standard_name")
+                    ][0]
+                ].attrs.get("long_name") and self.CTcoords["axis_entry"][pmatch].get(
+                    "formula"
+                ) == self.xrds[
+                    self.xrds.cf.standard_names[
+                        self.CTcoords["axis_entry"][pmatch].get("standard_name")
+                    ][0]
+                ].attrs.get(
+                    "formula"
+                ):
+                    plfmatches.append(pmatch)
+            if len(plfmatches) != 1:
+                messages.append(
+                    f"The required dimension / coordinate '{dimCT}' of variable '{var}' is not defined explicitly. Multiple generic level matches "
+                    f"({', '.join(pmatches)}) can be identified due to insufficient and incompliant metadata specification."
+                )
+                return {}
+            else:
+                return self.CTcoords["axis_entry"][plfmatches[0]]
 
-        return self.CTcoords["axis_entry"][pmatches[0]][0]
+        return self.CTcoords["axis_entry"][pmatches[0]]
 
     def check_variable_definition(self, ds):
         """Checks mandatory variable attributes of the main variable and associated coordinates."""
@@ -1103,9 +1124,15 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
         # todo: check max min range for var / coord
         #
         dimsCT = self._get_var_attr("dimensions", [])
-        if dimsCT:
-            if isinstance(dimsCT, str):
-                dimsCT = dimsCT.split()
+        dimsCT_is_valid = True
+        if isinstance(dimsCT, str):
+            dimsCT = dimsCT.split()
+        elif not isinstance(dimsCT, list):
+            messages.append(
+                f"Invalid 'dimensions' format for variable '{var}'. This is an issue in the CMOR tables definition and not necessarily in the data file."
+            )
+            dimsCT_is_valid = False
+        if dimsCT and dimsCT_is_valid:
             for dimCT in dimsCT:
                 # The coordinate out_name must be in one of the following
                 # - in the variable dimensions
@@ -1113,8 +1140,10 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
                 diminfo = self.CTcoords["axis_entry"].get(dimCT, {})
                 if not diminfo:
                     diminfo = self._resolve_generic_level(dimCT, var, messages)
-                if not diminfo:
+                    # todo: checks below need to be updated to support generic levels
                     continue
+                # if not diminfo:  # if checks below support generic levels, this can be uncommented
+                #    continue
                 dim_on = diminfo.get("out_name", "")
                 dim_val_raw = diminfo.get("value", "")
                 dim_bnds_raw = diminfo.get("bounds_values", "")
@@ -1125,7 +1154,8 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
                 cbnds = self.xrds[dim_on].attrs.get("bounds", None)
                 if dim_mhbnds not in ["yes", "no"]:
                     messages.append(
-                        f"The 'must_have_bounds' attribute of dimension / coordinate '{dimCT}' of the variable '{var}' has to be set to 'yes' or 'no'. This is an issue in the CMOR tables definition and not necessarily in the data file."
+                        f"The 'must_have_bounds' attribute of dimension / coordinate '{dimCT}' of the variable '{var}' has to be set to 'yes' or 'no'. "
+                        "This is an issue in the CMOR tables definition and not necessarily in the data file."
                     )
                     continue
                 if not dim_on:
@@ -1246,7 +1276,7 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
                                 )
                             elif (
                                 self.xrds[cbnds].ndim != 1
-                                or self.xrds.dims[self.xrds[cbnds].dim[0]] != 2
+                                or self.xrds.sizes[self.xrds[cbnds].dim[0]] != 2
                             ):
                                 messages.append(
                                     f"The bounds variable '{cbnds}' needs to be one-dimensional and have exactly two values."
