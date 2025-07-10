@@ -927,7 +927,10 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
         # Check only the first latitude and longitude found
         dimsCT = self._get_var_attr("dimensions", [])
         if "latitude" or "longitude" in dimsCT:
-            if "latitude" in self.xrds.cf.standard_names and self.xrds[self.xrds.cf.standard_names["latitude"][0]].ndim > 1:
+            if (
+                "latitude" in self.xrds.cf.standard_names
+                and self.xrds[self.xrds.cf.standard_names["latitude"][0]].ndim > 1
+            ):
                 lat = self.xrds.cf.standard_names["latitude"][0]
                 if lat != self.CTgrids["variable_entry"]["latitude"]["out_name"]:
                     messages.append(
@@ -954,7 +957,10 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
                             attrs=["type"],
                         )
                     )
-            if "longitude" in self.xrds.cf.standard_names and self.xrds[self.xrds.cf.standard_names["longitude"][0]].ndim > 1:
+            if (
+                "longitude" in self.xrds.cf.standard_names
+                and self.xrds[self.xrds.cf.standard_names["longitude"][0]].ndim > 1
+            ):
                 lon = self.xrds.cf.standard_names["longitude"][0]
                 if lon != self.CTgrids["variable_entry"]["longitude"]["out_name"]:
                     messages.append(
@@ -1025,6 +1031,44 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
 
         return self.make_result(level, out_of, score, desc, messages)
 
+    def _resolve_generic_level(self, dimCT, var, messages):
+        """
+        Attempt to resolve a generic level like 'alevel' to a valid axis_entry.
+        """
+        candidates = [
+            key
+            for key, entry in self.CTcoords["axis_entry"].items()
+            if entry.get("generic_level_name") == dimCT
+        ]
+
+        if not candidates:
+            messages.append(
+                f"The required dimension / coordinate '{dimCT}' of variable '{var}' is not defined explicitly and no generic level match (e.g., 'generic_level_name': '{dimCT}') could be found in the CMOR table."
+            )
+            return {}
+
+        # Get candidates with same standard_name as data set variables to get possible matches
+        pmatches = list()
+        for c in candidates:
+            if (
+                self.CTcoords["axis_entry"][c].get("standard_name")
+                in self.xrds.cf.standard_names
+            ):
+                pmatches.append(c)
+
+        if not pmatches:
+            messages.append(
+                f"The required dimension / coordinate '{dimCT}' of variable '{var}' is not defined explicitly. No generic level matches ({', '.join(candidates)}) could be identified in the input file via standard_name."
+            )
+            return {}
+        elif len(pmatches) > 1:
+            messages.append(
+                f"The required dimension / coordinate '{dimCT}' of variable '{var}' is not defined explicitly. Multiple generic level matches ({', '.join(pmatches)}) could be identified in the input file via standard_name while only one is required."
+            )
+            return {}
+
+        return self.CTcoords["axis_entry"][pmatches[0]][0]
+
     def check_variable_definition(self, ds):
         """Checks mandatory variable attributes of the main variable and associated coordinates."""
         desc = "Variable and coordinate definition (CV)"
@@ -1067,6 +1111,10 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
                 # - in the variable dimensions
                 # - in the variable attribute "coordinates"
                 diminfo = self.CTcoords["axis_entry"].get(dimCT, {})
+                if not diminfo:
+                    diminfo = self._resolve_generic_level(dimCT, var, messages)
+                if not diminfo:
+                    continue
                 dim_on = diminfo.get("out_name", "")
                 dim_val_raw = diminfo.get("value", "")
                 dim_bnds_raw = diminfo.get("bounds_values", "")
