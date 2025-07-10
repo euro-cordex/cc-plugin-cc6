@@ -924,10 +924,10 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
         if len(self.varname) == 0:
             return self.make_result(level, out_of, out_of, desc, messages)
 
-        dimsCT = self._get_var_attr("dimensions", [])
         # Check only the first latitude and longitude found
+        dimsCT = self._get_var_attr("dimensions", [])
         if "latitude" or "longitude" in dimsCT:
-            if "latitude" in self.xrds.cf.standard_names:
+            if "latitude" in self.xrds.cf.standard_names and self.xrds[self.xrds.cf.standard_names["latitude"][0]].ndim > 1:
                 lat = self.xrds.cf.standard_names["latitude"][0]
                 if lat != self.CTgrids["variable_entry"]["latitude"]["out_name"]:
                     messages.append(
@@ -954,7 +954,7 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
                             attrs=["type"],
                         )
                     )
-            if "longitude" in self.xrds.cf.standard_names:
+            if "longitude" in self.xrds.cf.standard_names and self.xrds[self.xrds.cf.standard_names["longitude"][0]].ndim > 1:
                 lon = self.xrds.cf.standard_names["longitude"][0]
                 if lon != self.CTgrids["variable_entry"]["longitude"]["out_name"]:
                     messages.append(
