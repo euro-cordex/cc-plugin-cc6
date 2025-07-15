@@ -1,6 +1,8 @@
 import re
+from pathlib import Path
 
 import pytest
+import xarray as xr
 from _commons import DATASETS
 from compliance_checker.suite import CheckSuite
 from importlib_metadata import entry_points
@@ -99,6 +101,40 @@ def test_cc6_basic(load_test_data):
     res_fx = cs.run_all(ds_fx, ["cc6"], skip_checks=[])
     print(res)  # noqa
     print(res_fx)  # noqa
+
+
+def test_cc6_time_checks_only(load_test_data, tmp_path):
+    ifile = DATASETS["TAS_REMO"]
+    ofile = tmp_path / Path(ifile).name
+    ds = xr.open_dataset(ifile)
+    del ds.attrs["frequency"]
+    ds.to_netcdf(ofile)
+    cs = CheckSuite(
+        options={
+            "cc6": {
+                "time_checks_only": True,
+                "write_consistency_output": tmp_path / "consistency.txt",
+            }
+        }
+    )
+    cs.load_all_available_checkers()
+    ds = cs.load_dataset(ofile)
+    res = cs.run_all(
+        ds,
+        ["cc6"],
+        include_checks=[
+            "check_time_continuity",
+            "check_time_bounds",
+            "check_time_range",
+        ],
+        skip_checks=[],
+    )
+    print(res)  # noqa
+    assert res["cc6"][1] == {}, f"Errors occurred: {res['cc6'][1]}"
+    for check_result in res["cc6"][0]:
+        assert (
+            len(set(check_result.value)) == 1
+        ), f"Inconsistent check values: {check_result.value}"
 
 
 @pytest.mark.xfail

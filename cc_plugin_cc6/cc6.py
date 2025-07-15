@@ -26,7 +26,9 @@ class CORDEXCMIP6(MIPCVCheck):
 
     def setup(self, dataset):
         super().setup(dataset)
-        if not self.options.get("tables", False):
+        if not self.options.get("tables", False) and not self.options.get(
+            "time_checks_only", False
+        ):
             if self.debug:
                 print("Downloading CV and CMOR tables.")
             tables_path = self.options.get(
@@ -59,8 +61,8 @@ class CORDEXCMIP6(MIPCVCheck):
             self._initialize_CV_info(tables_path)
             self._initialize_time_info()
             self._initialize_coords_info()
-        if self.consistency_output:
-            self._write_consistency_output()
+            if self.consistency_output:
+                self._write_consistency_output()
 
         # Specify the global attributes that will be checked by a specific check
         #  rather than a general check against the value given in the CV
@@ -656,6 +658,41 @@ class CORDEXCMIP6(MIPCVCheck):
             score += 2
 
         return self.make_result(level, score, out_of, desc, messages)
+
+    def check_driving_source(self, ds):
+        """Checks if global attribute driving_source is (correctly) defined."""
+        desc = "driving_source (CV)"
+        out_of = 2
+        score = 0
+        messages = []
+        # Level varies
+        # - if driving_source is not defined, it is recommended to define it
+        # - if it is incorrectly defined, it is required to correct it
+
+        # Test if driving_source is defined
+        drivs = self._get_attr("driving_source", False)
+        if not drivs:
+            level = BaseCheck.MEDIUM
+            messages = [
+                "The global attribute 'driving_source' is not defined. It is however recommended to include it."
+            ]
+            return self.make_result(level, score, out_of, desc, messages)
+        else:
+            level = BaseCheck.HIGH
+            score += 1
+            drivsid = self._get_attr("driving_source_id", False)
+            # Abort if driving_source_id undefined or unknown (will cause a failed check elsewhere)
+            if not drivsid or drivsid not in self.CV["driving_source_id"]:
+                return self.make_result(level, out_of, out_of, desc, messages)
+            # Else compare with CV
+            elif drivs != self.CV["driving_source_id"][drivsid]["driving_source"]:
+                messages = [
+                    "The global attribute 'driving_source' does not comply with the CV."
+                ]
+            else:
+                score += 1
+
+            return self.make_result(level, score, out_of, desc, messages)
 
     def check_grid_mapping(self, ds):
         """Checks if the grid_mapping label is compliant with the archive specifications."""
