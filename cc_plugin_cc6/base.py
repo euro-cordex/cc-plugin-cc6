@@ -35,6 +35,16 @@ def printtimedelta(d):
         return f"{d} seconds"
 
 
+def flatten(lst):
+    result = []
+    for item in lst:
+        if isinstance(item, list):
+            result.extend(flatten(item))
+        else:
+            result.append(item)
+    return result
+
+
 class MIPCVCheckBase(BaseCheck):
     register_checker = False
     _cc_spec = "mip"
@@ -78,6 +88,91 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
             self._initialize_coords_info()
             if self.consistency_output:
                 self._write_consistency_output()
+        # if only the time checks should be run (so no verification against CV / MIP tables)
+        elif self.options.get("time_checks_only", False):
+            self.varname = [
+                var
+                for var in flatten(list(self.xrds.cf.standard_names.values()))
+                if var
+                not in flatten(
+                    list(self.xrds.cf.coordinates.values())
+                    + list(self.xrds.cf.axes.values())
+                    + list(self.xrds.cf.bounds.values())
+                    + list(self.xrds.cf.formula_terms.values())
+                )
+            ]
+            self._initialize_time_info()
+            self._initialize_coords_info()
+            self.frequency = self._get_attr("frequency")
+            if self.varname != []:
+                self.cell_methods = self.xrds[self.varname[0]].attrs.get(
+                    "cell_methods", "unknown"
+                )
+            else:
+                self.cell_methods = "unknown"
+            self.drs_fn = {}
+            if self.frequency == "unknown" and self.time is not None:
+                if self.time.sizes[self.time.dims[0]] > 1 and 1 == 2:
+                    for ifreq in [
+                        fkey
+                        for fkey in deltdic.keys()
+                        if "max" not in fkey and "min" not in fkey
+                    ]:
+                        try:
+                            intv = abs(
+                                get_tseconds(
+                                    cftime.num2date(
+                                        self.time.values[1],
+                                        units=self.timeunits,
+                                        calendar=self.calendar,
+                                    )
+                                    - cftime.num2date(
+                                        self.time.values[0],
+                                        units=self.timeunits,
+                                        calendar=self.calendar,
+                                    )
+                                )
+                            )
+                            if (
+                                intv <= deltdic[ifreq + "max"]
+                                and intv >= deltdic[ifreq + "min"]
+                            ):
+                                self.frequency = ifreq
+                                break
+                        except (AttributeError, ValueError):
+                            continue
+                elif self.timebnds and len(self.xrds[self.timebnds].dims) == 2:
+                    for ifreq in [
+                        fkey
+                        for fkey in deltdic.keys()
+                        if "max" not in fkey and "min" not in fkey
+                    ]:
+                        try:
+                            intv = abs(
+                                get_tseconds(
+                                    cftime.num2date(
+                                        self.xrds[self.timebnds].values[0, 1],
+                                        units=self.timeunits,
+                                        calendar=self.calendar,
+                                    )
+                                    - cftime.num2date(
+                                        self.xrds[self.timebnds].values[0, 0],
+                                        units=self.timeunits,
+                                        calendar=self.calendar,
+                                    )
+                                )
+                            )
+                            if (
+                                intv <= deltdic[ifreq + "max"]
+                                and intv >= deltdic[ifreq + "min"]
+                            ):
+                                self.frequency = ifreq
+                                break
+                        except (AttributeError, ValueError):
+                            continue
+            if self.consistency_output:
+                self._write_consistency_output()
+        # in case of general "mip" checks, the path to the CMOR tables need to be specified
         elif self._cc_spec == "mip":
             raise Exception(
                 "ERROR: No 'tables' option specified. Cannot initialize CV and MIP tables."
@@ -146,7 +241,6 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
                 )
             for key in ["table_id"]:
                 if key not in self.CT[table]["Header"]:
-                    print(table, key)
                     raise KeyError(
                         f"CMOR table '{table}' misses the key '{key}' in the header information."
                     )
@@ -221,9 +315,6 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
             # The entire checker crashes in case of invalid time units
             # todo: catch a possible exception in base._initialize_time_info
             #       and report the problem in any check method
-            self.timedec = xr.decode_cf(
-                self.xrds.copy(deep=True), decode_times=True, use_cftime=True
-            ).cf["time"]
             self.time_invariant_vars = [
                 var
                 for var in list(self.xrds.data_vars.keys())
@@ -234,7 +325,6 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
             self.calendar = None
             self.timeunits = None
             self.timebnds = None
-            self.timedec = None
             self.time_invariant_vars = [
                 var
                 for var in list(self.xrds.data_vars.keys())
@@ -304,13 +394,6 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
                     return default
         return default
 
-    def _infer_frequency(self):
-        """Infer frequency from given time dimension"""
-        try:
-            return xr.infer_freq(self.timedec)
-        except ValueError:
-            return "unknown"
-
     def _read_CV(self, path, table_prefix, table_name):
         """Reads the specified CV table."""
         table_path = Path(path, f"{table_prefix}_{table_name}.json")
@@ -325,7 +408,10 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
     def _write_consistency_output(self):
         """Write output for consistency checks across files."""
         # Dictionaries of global attributes and their data types
-        required_attributes = self.CV.get("required_global_attributes", {})
+        if self.options.get("time_checks_only", False):
+            required_attributes = {}
+        else:
+            required_attributes = self.CV.get("required_global_attributes", {})
         file_attrs_req = {
             k: str(v) for k, v in self.xrds.attrs.items() if k in required_attributes
         }
@@ -834,10 +920,13 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
         if len(self.varname) == 0:
             return self.make_result(level, out_of, out_of, desc, messages)
 
-        dimsCT = self._get_var_attr("dimensions", [])
         # Check only the first latitude and longitude found
+        dimsCT = self._get_var_attr("dimensions", [])
         if "latitude" or "longitude" in dimsCT:
-            if "latitude" in self.xrds.cf.standard_names:
+            if (
+                "latitude" in self.xrds.cf.standard_names
+                and self.xrds[self.xrds.cf.standard_names["latitude"][0]].ndim > 1
+            ):
                 lat = self.xrds.cf.standard_names["latitude"][0]
                 if lat != self.CTgrids["variable_entry"]["latitude"]["out_name"]:
                     messages.append(
@@ -864,7 +953,10 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
                             attrs=["type"],
                         )
                     )
-            if "longitude" in self.xrds.cf.standard_names:
+            if (
+                "longitude" in self.xrds.cf.standard_names
+                and self.xrds[self.xrds.cf.standard_names["longitude"][0]].ndim > 1
+            ):
                 lon = self.xrds.cf.standard_names["longitude"][0]
                 if lon != self.CTgrids["variable_entry"]["longitude"]["out_name"]:
                     messages.append(
@@ -935,6 +1027,65 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
 
         return self.make_result(level, out_of, score, desc, messages)
 
+    def _resolve_generic_level(self, dimCT, var, messages):
+        """
+        Attempt to resolve a generic level like 'alevel' to a valid axis_entry.
+        """
+        candidates = [
+            key
+            for key, entry in self.CTcoords["axis_entry"].items()
+            if entry.get("generic_level_name") == dimCT
+        ]
+
+        if not candidates:
+            messages.append(
+                f"The required dimension / coordinate '{dimCT}' of variable '{var}' is not defined explicitly and no generic level match (e.g., 'generic_level_name': '{dimCT}') could be found in the CMOR table."
+            )
+            return {}
+
+        # Get candidates with same standard_name as data set variables to get possible matches
+        pmatches = list()
+        for c in candidates:
+            if (
+                self.CTcoords["axis_entry"][c].get("standard_name")
+                in self.xrds.cf.standard_names
+            ):
+                pmatches.append(c)
+
+        if not pmatches:
+            messages.append(
+                f"The required dimension / coordinate '{dimCT}' of variable '{var}' is not defined explicitly. No generic level matches ({', '.join(candidates)}) could be identified in the input file via standard_name."
+            )
+            return {}
+        elif len(pmatches) > 1:
+            # Try to select further by long_name and formula:
+            plfmatches = list()
+            for pmatch in pmatches:
+                if self.CTcoords["axis_entry"][pmatch].get("long_name") == self.xrds[
+                    self.xrds.cf.standard_names[
+                        self.CTcoords["axis_entry"][pmatch].get("standard_name")
+                    ][0]
+                ].attrs.get("long_name") and self.CTcoords["axis_entry"][pmatch].get(
+                    "formula"
+                ) == self.xrds[
+                    self.xrds.cf.standard_names[
+                        self.CTcoords["axis_entry"][pmatch].get("standard_name")
+                    ][0]
+                ].attrs.get(
+                    "formula"
+                ):
+                    plfmatches.append(pmatch)
+            if len(plfmatches) != 1:
+                messages.append(
+                    f"The required dimension / coordinate '{dimCT}' of variable '{var}' is not defined explicitly. Multiple generic level matches "
+                    f"({', '.join(pmatches)}) can be identified due to insufficient and incompliant metadata specification."
+                )
+                return {}
+            else:
+                return self.CTcoords["axis_entry"][plfmatches[0]]
+
+        return self.CTcoords["axis_entry"][pmatches[0]]
+
     def check_variable_definition(self, ds):
         """Checks mandatory variable attributes of the main variable and associated coordinates."""
         desc = "Variable and coordinate definition (CV)"
@@ -969,14 +1120,26 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
         # todo: check max min range for var / coord
         #
         dimsCT = self._get_var_attr("dimensions", [])
-        if dimsCT:
-            if isinstance(dimsCT, str):
-                dimsCT = dimsCT.split()
+        dimsCT_is_valid = True
+        if isinstance(dimsCT, str):
+            dimsCT = dimsCT.split()
+        elif not isinstance(dimsCT, list):
+            messages.append(
+                f"Invalid 'dimensions' format for variable '{var}'. This is an issue in the CMOR tables definition and not necessarily in the data file."
+            )
+            dimsCT_is_valid = False
+        if dimsCT and dimsCT_is_valid:
             for dimCT in dimsCT:
                 # The coordinate out_name must be in one of the following
                 # - in the variable dimensions
                 # - in the variable attribute "coordinates"
                 diminfo = self.CTcoords["axis_entry"].get(dimCT, {})
+                if not diminfo:
+                    diminfo = self._resolve_generic_level(dimCT, var, messages)
+                    # todo: checks below need to be updated to support generic levels
+                    continue
+                # if not diminfo:  # if checks below support generic levels, this can be uncommented
+                #    continue
                 dim_on = diminfo.get("out_name", "")
                 dim_val_raw = diminfo.get("value", "")
                 dim_bnds_raw = diminfo.get("bounds_values", "")
@@ -987,7 +1150,8 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
                 cbnds = self.xrds[dim_on].attrs.get("bounds", None)
                 if dim_mhbnds not in ["yes", "no"]:
                     messages.append(
-                        f"The 'must_have_bounds' attribute of dimension / coordinate '{dimCT}' of the variable '{var}' has to be set to 'yes' or 'no'. This is an issue in the CMOR tables definition and not necessarily in the data file."
+                        f"The 'must_have_bounds' attribute of dimension / coordinate '{dimCT}' of the variable '{var}' has to be set to 'yes' or 'no'. "
+                        "This is an issue in the CMOR tables definition and not necessarily in the data file."
                     )
                     continue
                 if not dim_on:
@@ -1108,7 +1272,7 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
                                 )
                             elif (
                                 self.xrds[cbnds].ndim != 1
-                                or self.xrds.dims[self.xrds[cbnds].dim[0]] != 2
+                                or self.xrds.sizes[self.xrds[cbnds].dim[0]] != 2
                             ):
                                 messages.append(
                                     f"The bounds variable '{cbnds}' needs to be one-dimensional and have exactly two values."
@@ -1356,8 +1520,11 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
 
         # Check if frequency is known and supported
         #  (as defined in deltdic)
-        if self.frequency in ["unknown", "fx"]:
+        if self.frequency == "fx":
             return self.make_result(level, out_of, out_of, desc, messages)
+        elif self.frequency == "unknown":
+            messages.append("Cannot test time continuity: Frequency not defined.")
+            return self.make_result(level, score, out_of, desc, messages)
         if self.frequency not in deltdic.keys():
             messages.append(f"Frequency '{self.frequency}' not supported.")
             return self.make_result(level, score, out_of, desc, messages)
@@ -1429,7 +1596,9 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
             messages.append(f"Frequency '{self.frequency}' not supported.")
             return self.make_result(level, score, out_of, desc, messages)
         if self.cell_methods == "unknown":
-            if len(self.varname) > 0:
+            if len(self.varname) > 0 and not self.options.get(
+                "time_checks_only", False
+            ):
                 messages.append(
                     f"MIP table for '{self.varname[0]}' could not be identified"
                     " and thus no 'cell_methods' attribute could be read."
@@ -1570,7 +1739,19 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
 
         # If time_range is not part of the file name structure, abort
         if "time_range" not in self.drs_fn:
-            return self.make_result(level, out_of, out_of, desc, messages)
+            # Attempt to infer time range from filename if only timechecks are to be run:
+            if self.options.get("time_checks_only", False):
+                matches = list(
+                    filter(
+                        re.compile(r"^\d{1,}-?\d*$").match,
+                        os.path.splitext(os.path.basename(self.filepath))[0].split("_"),
+                    )
+                )
+                if len(matches) != 1:
+                    return self.make_result(level, out_of, out_of, desc, messages)
+                self.drs_fn = {"time_range": matches[0]}
+            else:
+                return self.make_result(level, out_of, out_of, desc, messages)
 
         # Check if frequency is identified and data is not time invariant
         #  (as defined in deltdic)
