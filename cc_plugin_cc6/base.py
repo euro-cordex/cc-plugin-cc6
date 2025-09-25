@@ -699,8 +699,11 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
                     )
         return messages
 
-    def check_table_id(self, ds):
+    def _check_table_id(self, ds):
         """Table ID (CV)"""
+        ###
+        ### NOTE: This check is now part to the check of required global attributes.
+        ###
         desc = "Table ID"
         level = BaseCheck.HIGH
         out_of = 1
