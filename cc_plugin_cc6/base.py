@@ -702,7 +702,8 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
     def _check_table_id(self, ds):
         """Table ID (CV)"""
         ###
-        ### NOTE: This check is now part to the check of required global attributes.
+        ### This check is left to the check of required global attributes.
+        ### See CMIP6 CMOR Tables as example (has table_id as required and lists valid values)
         ###
         desc = "Table ID"
         level = BaseCheck.HIGH
