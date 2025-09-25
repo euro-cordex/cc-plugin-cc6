@@ -1241,7 +1241,7 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
                         messages.append(
                             f"The bounds variable '{cbnds}' of dimension / coordinate '{dimCT}' of the variable '{var}' should be named '{dim_on}_bnds'."
                         )
-                else:
+                elif dimCT == "time":
                     if cbnds:
                         messages.append(
                             f"The dimension / coordinate '{dimCT}' of the variable '{var}' should not have bounds defined ('{cbnds}')."
