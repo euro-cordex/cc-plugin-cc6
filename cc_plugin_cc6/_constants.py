@@ -29,3 +29,8 @@ deltdic["decmin"] = timedelta(days=3660.01).total_seconds()
 deltdic["cen"] = timedelta(days=36000).total_seconds()
 deltdic["cenmax"] = timedelta(days=35999.99).total_seconds()
 deltdic["cenmin"] = timedelta(days=36600.01).total_seconds()
+# CMIP-style frequencies for "time: point":
+for l_freq in ["subhr", "1hr", "3hr", "6hr", "day", "mon", "yr"]:
+    deltdic[l_freq + "Pt"] = deltdic[l_freq]
+    deltdic[l_freq + "Ptmax"] = deltdic[l_freq + "max"]
+    deltdic[l_freq + "Ptmin"] = deltdic[l_freq + "min"]

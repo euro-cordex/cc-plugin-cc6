@@ -325,20 +325,21 @@ class CORDEXCMIP6(MIPCVCheck):
 
         if len(messages) == 0:
             errmsg = (
-                f"{'Apart from the first and last files of a timeseries ' if nyears>1 else ''}'{nyears}' "
-                f"full simulation year{' is' if nyears==1 else 's are'} "
+                "File chunking recommendations: "
+                f"{'Apart from the first and last files of a timeseries ' if nyears>1 else ''}"
+                f"'{nyears}' full simulation year{' is' if nyears==1 else 's are'} "
                 f"expected in the data file for frequency '{self.frequency}'."
             )
             # Check if the first time is equal to the expected start date
             if first_time != expected_start_date:
                 messages.append(
-                    f"The first timestep differs from expectation ('{expected_start_date}'): '{first_time}'. "
+                    f"The first timestep conflicts with this recommendation ('{expected_start_date}'): '{first_time}'. "
                     + errmsg
                 )
             # Check if the last time is equal to the expected end date
             if last_time != expected_end_date and last_time != expected_end_date_exp:
                 messages.append(
-                    f"The last timestep differs from expectation ('{expected_end_date}'): '{last_time}'. "
+                    f"The last timestep conflicts with this recommendation ('{expected_end_date}'): '{last_time}'. "
                     + errmsg
                 )
         if len(messages) == 0:

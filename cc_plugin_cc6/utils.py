@@ -1,5 +1,7 @@
 import re
 
+import numpy as np
+
 
 def convert_posix_to_python(posix_regex):
     """
@@ -59,3 +61,15 @@ def match_pattern_or_string(pattern, target):
         and convert_posix_to_python(target) == target
         and ".*" not in target
     )
+
+
+def to_str(val):
+    """
+    Decode byte strings to utf-8 if possible and leave other typed input unchanged.
+    """
+    if isinstance(val, (bytes, np.bytes_)):
+        try:
+            return val.decode("utf-8")
+        except UnicodeDecodeError:
+            return val
+    return str(val)

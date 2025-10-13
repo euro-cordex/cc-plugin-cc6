@@ -15,7 +15,7 @@ from compliance_checker.base import BaseCheck, BaseNCCheck, Result
 from cc_plugin_cc6 import __version__
 
 from ._constants import deltdic
-from .utils import match_pattern_or_string
+from .utils import match_pattern_or_string, to_str
 
 get_tseconds = lambda t: t.total_seconds()  # noqa
 get_tseconds_vector = np.vectorize(get_tseconds)
@@ -1257,12 +1257,11 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
                             messages.append(
                                 f"The coordinate variable '{dim_on}' of the variable '{var}' should be a scalar coordinate but is not 0-dimensional."
                             )
-                        if (
+                        if to_str(
                             self._dtypesdict.get(dim_type, str)(dim_val[0])
-                            != np.atleast_1d(self.xrds[dim_on].values)[0]
-                        ):
+                        ) != to_str(np.atleast_1d(self.xrds[dim_on].values)[0]):
                             messages.append(
-                                f"The coordinate variable '{dim_on}' of the variable '{var}' needs to have the value '{self._dtypesdict.get(dim_type, str)(dim_val[0])}', but has the value '{np.atleast_1d(self.xrds[dim_on].values[0])}'."
+                                f"The coordinate variable '{dim_on}' of the variable '{var}' needs to have the value '{to_str(self._dtypesdict.get(dim_type, str)(dim_val[0]))}', but has the value '{to_str(np.atleast_1d(self.xrds[dim_on].values)[0])}'."
                             )
                         # check bounds / bounds_values
                         if dim_bnds and cbnds:
@@ -1588,13 +1587,7 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
         score = 0
         messages = []
 
-        # Check if frequency is known and supported
-        #  (as defined in deltdic)
-        if self.frequency in ["unknown", "fx"]:
-            return self.make_result(level, out_of, out_of, desc, messages)
-        if self.frequency not in deltdic.keys():
-            messages.append(f"Frequency '{self.frequency}' not supported.")
-            return self.make_result(level, score, out_of, desc, messages)
+        # Do the cell_methods require to check the time bounds?
         if self.cell_methods == "unknown":
             if len(self.varname) > 0 and not self.options.get(
                 "time_checks_only", False
@@ -1607,6 +1600,13 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
                 messages.append("The 'cell_methods' are not specified.")
         elif "time: point" in self.cell_methods:
             return self.make_result(level, out_of, out_of, desc, messages)
+        # Check if frequency is known and supported
+        #  (as defined in deltdic)
+        if self.frequency in ["unknown", "fx"]:
+            return self.make_result(level, out_of, out_of, desc, messages)
+        if self.frequency not in deltdic.keys():
+            messages.append(f"Frequency '{self.frequency}' not supported.")
+            return self.make_result(level, score, out_of, desc, messages)
 
         # Get the time dimension, calendar and units
         if self.time is None:
