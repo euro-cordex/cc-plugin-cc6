@@ -1147,7 +1147,10 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
                 dim_req = diminfo.get("requested", "")
                 dim_reqbnds = diminfo.get("requested_bounds", "")
                 dim_mhbnds = diminfo.get("must_have_bounds", "")
-                cbnds = self.xrds[dim_on].attrs.get("bounds", None)
+                try:
+                    cbnds = self.xrds[dim_on].attrs.get("bounds", None)
+                except KeyError:
+                    cbnds = None
                 if dim_mhbnds not in ["yes", "no"]:
                     messages.append(
                         f"The 'must_have_bounds' attribute of dimension / coordinate '{dimCT}' of the variable '{var}' has to be set to 'yes' or 'no'. "
