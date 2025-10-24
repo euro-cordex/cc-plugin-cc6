@@ -333,14 +333,14 @@ class CORDEXCMIP6(MIPCVCheck):
             # Check if the first time is equal to the expected start date
             if first_time != expected_start_date:
                 messages.append(
-                    f"The first timestep conflicts with this recommendation ('{expected_start_date}'): '{first_time}'. "
-                    + errmsg
+                    errmsg
+                    + f" The first timestep conflicts with this recommendation ('{expected_start_date}'): '{first_time}'. "
                 )
             # Check if the last time is equal to the expected end date
             if last_time != expected_end_date and last_time != expected_end_date_exp:
                 messages.append(
-                    f"The last timestep conflicts with this recommendation ('{expected_end_date}'): '{last_time}'. "
-                    + errmsg
+                    errmsg
+                    + f" The last timestep conflicts with this recommendation ('{expected_end_date}'): '{last_time}'. "
                 )
         if len(messages) == 0:
             score += 1
@@ -823,7 +823,6 @@ class CORDEXCMIP6(MIPCVCheck):
                     else:
                         messages.append(
                             "The longitude coordinate should be strictly monotonically increasing."
-                            f"{increasing_0}, {increasing_1}"
                         )
                 elif rlon_idx == 1:
                     if increasing_1:
@@ -831,14 +830,12 @@ class CORDEXCMIP6(MIPCVCheck):
                     else:
                         messages.append(
                             "The longitude coordinate should be strictly monotonically increasing."
-                            f"{increasing_0}, {increasing_1}"
                         )
             elif increasing_0 or increasing_1:
                 score += 1
             else:
                 messages.append(
                     "The longitude coordinate should be strictly monotonically increasing."
-                    f"{increasing_0}, {increasing_1}"
                 )
 
         # Check if longitude coordinates are confined to the range -180 to 360
