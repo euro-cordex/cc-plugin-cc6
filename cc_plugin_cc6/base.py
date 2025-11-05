@@ -15,7 +15,7 @@ from compliance_checker.base import BaseCheck, BaseNCCheck, Result
 from cc_plugin_cc6 import __version__
 
 from ._constants import deltdic
-from .utils import match_pattern_or_string, to_str
+from .utils import match_pattern_or_string, sanitize, to_str
 
 get_tseconds = lambda t: t.total_seconds()  # noqa
 get_tseconds_vector = np.vectorize(get_tseconds)
@@ -484,17 +484,19 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
         # Write combined dictionary
         with open(self.consistency_output, "w") as f:
             json.dump(
-                {
-                    "global_attributes": file_attrs_req,
-                    "global_attributes_non_required": file_attrs_nreq,
-                    "global_attributes_dtypes": file_attrs_dtypes,
-                    "variable_attributes": var_attrs,
-                    "variable_attributes_dtypes": var_attrs_dtypes,
-                    "variable_dtypes": var_dtypes,
-                    "dimensions": dims,
-                    "coordinates": coord_checksums,
-                    "time_info": time_info,
-                },
+                sanitize(
+                    {
+                        "global_attributes": file_attrs_req,
+                        "global_attributes_non_required": file_attrs_nreq,
+                        "global_attributes_dtypes": file_attrs_dtypes,
+                        "variable_attributes": var_attrs,
+                        "variable_attributes_dtypes": var_attrs_dtypes,
+                        "variable_dtypes": var_dtypes,
+                        "dimensions": dims,
+                        "coordinates": coord_checksums,
+                        "time_info": time_info,
+                    }
+                ),
                 f,
                 indent=4,
             )
