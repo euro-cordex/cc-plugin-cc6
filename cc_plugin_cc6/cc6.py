@@ -51,7 +51,7 @@ class CORDEXCMIP6(MIPCVCheck):
                     CORDEX_CMIP6_CMOR_TABLES_URL + "CORDEX-CMIP6_" + table + ".json",
                     filename,
                     tables_path,
-                    force=self.options.get("force_table_download", False),
+                    force="force_table_download" in self.options,
                 )
                 if os.path.basename(os.path.realpath(filename_retrieved)) != filename:
                     raise AssertionError(
