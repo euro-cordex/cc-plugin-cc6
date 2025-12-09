@@ -61,6 +61,11 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
     def make_result(cls, level, score, out_of, name, messages):
         return Result(level, (score, out_of), name, messages)
 
+    def __del__(self):
+        xrds = getattr(self, "xrds", None)
+        if xrds is not None and hasattr(xrds, "close"):
+            xrds.close()
+
     def setup(self, dataset):
         # netCDF4.Dataset
         self.dataset = dataset
@@ -620,8 +625,11 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
             drs_filename_template = re.findall(
                 r"<([^<>]*)\>", self.CV["DRS"]["filename_template"]
             )
-            self.drs_suffix = ".".join(
-                self.CV["DRS"]["filename_template"].split(".")[1:]
+            # Fix for new DRS template format
+            if "time_range" not in drs_filename_template:
+                drs_filename_template.append("time_range")
+            self.drs_suffix = (
+                ".".join(self.CV["DRS"]["filename_template"].split(".")[1:]) or "nc"
             )
         except KeyError:
             raise KeyError("The CV does not contain DRS information.")
