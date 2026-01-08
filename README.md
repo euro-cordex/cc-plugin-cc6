@@ -3,6 +3,10 @@
 [![PyPI](https://img.shields.io/pypi/v/cc-plugin-cc6?label=PyPI&logo=pypi)](https://pypi.org/project/cc-plugin-cc6/)
 [![Anaconda-Server Badge](https://anaconda.org/conda-forge/cc-plugin-cc6/badges/version.svg)](https://anaconda.org/conda-forge/cc-plugin-cc6)
 
+> [!IMPORTANT]
+> In the near future, this plugin should be replaced by the more general [cc-plugin-wcrp](https://github.com/ESGF/cc-plugin-wcrp)
+> which should implement a CORDEX specific [project plugin](https://esgf.github.io/cc-plugin-wcrp/wcrp_plugins/). This project will probably deprecate!
+
 This [ioos/compliance-checker](https://github.com/ioos/compliance-checker) plugin checks compliance with CORDEX-CMIP6 archive specifications:
 
 | Standard                                                                                             | Checker Name |
