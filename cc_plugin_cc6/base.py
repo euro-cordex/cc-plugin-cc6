@@ -1350,7 +1350,7 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
             "units",
             "cell_methods",
             "cell_measures",
-            "comment",
+            # "comment",
             "type",
         ]:
             vattrCT = self._get_var_attr(vattr, False)
