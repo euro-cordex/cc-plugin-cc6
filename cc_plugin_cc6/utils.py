@@ -19,6 +19,13 @@ def convert_posix_to_python(posix_regex):
     if not isinstance(posix_regex, str):
         raise ValueError("Input must be a string")
 
+    # [a,b] -> [a b]
+    posix_regex = re.sub(
+        r"(?<!\\)\[(.*?)(?<!\\)\]",
+        lambda m: "[" + m.group(1).replace(",", " ") + "]",
+        posix_regex,
+    )
+
     # Dictionary of POSIX to Python character class conversions
     posix_to_python_classes = {
         r"[[:alnum:]]": r"[a-zA-Z0-9]",
@@ -40,6 +47,20 @@ def convert_posix_to_python(posix_regex):
     # Replace POSIX quantifiers with Python equivalents
     posix_regex = posix_regex.replace(r"\{", "{").replace(r"\}", "}")
 
+    # Deal with groups
+    # Temporarily mark existing escaped parentheses that should become groups, e.g., \(
+    posix_regex = re.sub(r"\\\(", "__GROUP_LEFTPARENTHESIS__", posix_regex)
+    posix_regex = re.sub(r"\\\)", "__GROUP_RIGHTPARENTHESIS__", posix_regex)
+    # Escape all remaining unescaped parentheses (-> literal parentheses)
+    posix_regex = re.sub(r"(?<!\\)\(", r"\(", posix_regex)
+    posix_regex = re.sub(r"(?<!\\)\)", r"\)", posix_regex)
+    # Restore the placeholders as unescaped parentheses (grouping)
+    posix_regex = posix_regex.replace("__GROUP_LEFTPARENTHESIS__", "(")
+    posix_regex = posix_regex.replace("__GROUP_RIGHTPARENTHESIS__", ")")
+
+    # Replace "{1,}" with "+" to matchone or more repetitions
+    posix_regex = re.sub(r"\{1,\}", "+", posix_regex)
+
     return posix_regex
 
 
@@ -54,13 +75,21 @@ def match_pattern_or_string(pattern, target):
     Returns:
         bool: True if the target matches the regex pattern or is equal to the string.
     """
-    return bool(
-        re.fullmatch(convert_posix_to_python(pattern), target, flags=re.ASCII)
-    ) or (
-        pattern == target
-        and convert_posix_to_python(target) == target
-        and ".*" not in target
-    )
+    try:
+        return bool(
+            re.fullmatch(convert_posix_to_python(pattern), target, flags=re.ASCII)
+        ) or (
+            pattern == target
+            and convert_posix_to_python(target) == target
+            and ".*" not in target
+        )
+    except re.error:
+        # Invalid regex treat pattern as literal string
+        return (
+            pattern == target
+            and convert_posix_to_python(target) == target
+            and ".*" not in target
+        )
 
 
 def to_str(val):

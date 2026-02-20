@@ -24,7 +24,7 @@ def test_convert_posix_to_python_word():
 def test_convert_posix_to_python_punct():
     posix_regex = r"[[:punct:]]"
     python_regex = convert_posix_to_python(posix_regex)
-    assert python_regex == r'[!"#$%&\'()*+,\-./:;<=>?@[\\\]^_`{|}~]'
+    assert python_regex == r'[!"#$%&\'\(\)*+,\-./:;<=>?@[\\\]^_`{|}~]'
 
 
 def test_convert_posix_to_python_space():
@@ -36,7 +36,7 @@ def test_convert_posix_to_python_space():
 def test_convert_posix_to_python_quantifier():
     posix_regex = r"[[:digit:]]\{1,\}"
     python_regex = convert_posix_to_python(posix_regex)
-    assert python_regex == r"\d{1,}"
+    assert python_regex == r"\d+"
 
 
 def test_convert_posix_to_python_invalid_input():
@@ -59,7 +59,7 @@ def test_convert_posix_to_python_no_conversion_needed():
 def test_convert_posix_to_python_longer_testcase():
     posix_regex = r"[[:alnum:]]+[[:digit:]]\{1,\}[[:space:]]+hello"
     python_regex = convert_posix_to_python(posix_regex)
-    assert python_regex == r"[a-zA-Z0-9]+\d{1,}\s+hello"
+    assert python_regex == r"[a-zA-Z0-9]+\d+\s+hello"
 
 
 def test_convert_posix_to_python_no_replacement_needed():
@@ -77,7 +77,7 @@ def test_convert_posix_to_python_regular_string():
 def test_convert_posix_to_python_mixed_testcase():
     posix_regex = r"[[:alnum:]]+\d+hello[a-zA-Z0-9]\{1,\}"
     python_regex = convert_posix_to_python(posix_regex)
-    assert python_regex == r"[a-zA-Z0-9]+\d+hello[a-zA-Z0-9]{1,}"
+    assert python_regex == r"[a-zA-Z0-9]+\d+hello[a-zA-Z0-9]+"
 
 
 def test_convert_posix_to_python_ripf_raw():
@@ -85,10 +85,10 @@ def test_convert_posix_to_python_ripf_raw():
         r"r[[:digit:]]\{1,\}i[[:digit:]]\{1,\}p[[:digit:]]\{1,\}f[[:digit:]]\{1,\}$"
     )
     python_regex = convert_posix_to_python(posix_regex)
-    assert python_regex == r"r\d{1,}i\d{1,}p\d{1,}f\d{1,}$"
+    assert python_regex == r"r\d+i\d+p\d+f\d+$"
 
 
 def test_convert_posix_to_python_ripf():
     posix_regex = "r[[:digit:]]\\{1,\\}i[[:digit:]]\\{1,\\}p[[:digit:]]\\{1,\\}f[[:digit:]]\\{1,\\}$"
     python_regex = convert_posix_to_python(posix_regex)
-    assert python_regex == r"r\d{1,}i\d{1,}p\d{1,}f\d{1,}$"
+    assert python_regex == r"r\d+i\d+p\d+f\d+$"
