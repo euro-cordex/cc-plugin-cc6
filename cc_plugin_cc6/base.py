@@ -903,11 +903,19 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
         for entry in self.CTformulas["formula_entry"].keys():
             cvars.append(self.CTformulas["formula_entry"][entry]["out_name"])
         cvars = set(cvars)
-        # Add grid_mapping
+        # Add grid_mapping and quantization
         if len(self.varname) > 0:
             crs = getattr(ds.variables[self.varname[0]], "grid_mapping", False)
             if crs:
                 cvars |= {crs}
+            quant = (
+                ds.variables[self.varname[0]].getncattr("quantization")
+                if "quantization" in ds.variables[self.varname[0]].ncattrs()
+                else False
+            )
+            if quant:
+                cvars |= {quant}
+
         # Identify unknown variables / coordinates
         unknown = []
         for var in ds.variables.keys():
@@ -1023,18 +1031,25 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
                     messages.append(
                         f"Projection y coordinate variable '{y}' should be named '{self.CTgrids['axis_entry']['y_deg']['out_name']}'."
                     )
-                messages.extend(
-                    self._verify_attrs(y, self.CTgrids["axis_entry"]["y_deg"])
-                )
+                y_deg_msgs = self._verify_attrs(y, self.CTgrids["axis_entry"]["y_deg"])
+                y_msgs = self._verify_attrs(y, self.CTgrids["axis_entry"]["y"])
+                if len(y_deg_msgs) < len(y_msgs):
+                    messages.extend(y_deg_msgs)
+                else:
+                    messages.extend(y_msgs)
             if "projection_x_coordinate" in self.xrds.cf.standard_names:
                 x = self.xrds.cf.standard_names["projection_x_coordinate"][0]
                 if x != self.CTgrids["axis_entry"]["x_deg"]["out_name"]:
                     messages.append(
                         f"Projection x coordinate variable '{x}' should be named '{self.CTgrids['axis_entry']['x_deg']['out_name']}'."
                     )
-                messages.extend(
-                    self._verify_attrs(x, self.CTgrids["axis_entry"]["x_deg"])
-                )
+
+                x_deg_msgs = self._verify_attrs(x, self.CTgrids["axis_entry"]["x_deg"])
+                x_msgs = self._verify_attrs(x, self.CTgrids["axis_entry"]["x"])
+                if len(x_deg_msgs) < len(x_msgs):
+                    messages.extend(x_deg_msgs)
+                else:
+                    messages.extend(x_msgs)
 
         if len(messages) == 0:
             score += 1
@@ -1107,6 +1122,7 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
         score = 0
         out_of = 1
         messages = []
+        low_severity_messages = []
 
         # Only check if requested variable is identified
         if len(self.varname) == 0:
@@ -1356,9 +1372,16 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
             vattrCT = self._get_var_attr(vattr, False)
             if vattrCT:
                 if vattr == "comment":
+                    # Low severity
                     if vattrCT not in attrs.get("comment", ""):
-                        messages.append(
+                        low_severity_messages.append(
                             f"The variable attribute '{var}:comment' needs to include the specified comment from the CMOR table."
+                        )
+                elif vattr == "long_name":
+                    # Low severity
+                    if vattrCT != attrs.get(vattr, ""):
+                        low_severity_messages.append(
+                            f"The variable attribute '{var}:{vattr} = '{attrs.get(vattr, 'unset')}' is not equivalent to the value specified in the CMOR table ('{vattrCT}')."
                         )
                 elif vattr == "type":
                     reqdtype = self.dtypesdict.get(vattrCT, False)
@@ -1383,6 +1406,17 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
                         )
         if len(messages) == 0:
             score += 1
+
+        if len(low_severity_messages) > 0:
+            high_level_result = self.make_result(level, score, out_of, desc, messages)
+            low_level_result = self.make_result(
+                BaseCheck.LOW,
+                0,
+                1,
+                desc[:-1] + ", informational - no action required)",
+                low_severity_messages,
+            )
+            return [high_level_result, low_level_result]
 
         return self.make_result(level, score, out_of, desc, messages)
 
