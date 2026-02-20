@@ -49,45 +49,51 @@ cc6_checkdict = mip_checkdict | cc6_checkdict
 # Expected check failures
 expected_failures = dict()
 expected_failures["TAS_REMO"] = {
-    # "check_version_realization": [
-    #     "DRS filename building block 'version_realization' does not comply",
-    #     "DRS path building block 'version_realization' does not comply",
-    #     "Global attribute 'version_realization' does not comply",
-    # ],
-    "check_compression": [
-        "It is recommended that data should be compressed with a 'deflate level' of '1' and enabled 'shuffle' option."
-        " The 'shuffle' option is disabled.",
-    ],
-    # "check_version_realization_info": [
-    #     "The global attribute 'version_realization_info' is missing. It is however recommended"
-    # ],
-    "check_horizontal_axes_bounds": [
-        "It is recommended for the variables 'rlat' and 'rlon' or 'x' and 'y' to have bounds defined."
-    ],
-    "check_grid_mapping": [
-        "The grid_mapping variable 'rotated_latitude_longitude' needs to include information regarding the shape and size of the Earth"
-    ],
+    "check_compression": {
+        2: [
+            "It is recommended that data should be compressed with a 'deflate level' of '1' and enabled 'shuffle' option."
+            " The 'shuffle' option is disabled.",
+        ],
+    },
+    "check_horizontal_axes_bounds": {
+        2: [
+            "It is recommended for the variables 'rlat' and 'rlon' or 'x' and 'y' to have bounds defined."
+        ],
+    },
+    "check_grid_mapping": {
+        3: [
+            "The grid_mapping variable 'rotated_latitude_longitude' needs to include information regarding the shape and size of the Earth"
+        ],
+    },
+    "check_variable_definition": {
+        1: ["'tas:comment' needs to include the specified comment from the CMOR table"],
+    },
 }
 expected_failures["FXOROG_REMO"] = {
-    # "check_version_realization": [
-    #     "DRS filename building block 'version_realization' does not comply",
-    #     "DRS path building block 'version_realization' does not comply",
-    #     "Global attribute 'version_realization' does not comply",
-    # ],
-    "check_compression": [
-        "It is recommended that data should be compressed with a 'deflate level' of '1' and enabled 'shuffle' option."
-        " The 'shuffle' option is disabled.",
-    ],
-    # "check_version_realization_info": [
-    #     "The global attribute 'version_realization_info' is missing. It is however recommended"
-    # ],
-    "check_horizontal_axes_bounds": [
-        "It is recommended for the variables 'rlat' and 'rlon' or 'x' and 'y' to have bounds defined."
-    ],
-    "check_grid_mapping": [
-        "The grid_mapping variable 'rotated_latitude_longitude' needs to include information regarding the shape and size of the Earth"
-    ],
+    "check_compression": {
+        2: [
+            "It is recommended that data should be compressed with a 'deflate level' of '1' and enabled 'shuffle' option."
+            " The 'shuffle' option is disabled.",
+        ],
+    },
+    "check_horizontal_axes_bounds": {
+        2: [
+            "It is recommended for the variables 'rlat' and 'rlon' or 'x' and 'y' to have bounds defined."
+        ],
+    },
+    "check_grid_mapping": {
+        3: [
+            "The grid_mapping variable 'rotated_latitude_longitude' needs to include information regarding the shape and size of the Earth"
+        ],
+    },
+    "check_variable_definition": {
+        1: [
+            "'orog:comment' needs to include the specified comment from the CMOR table"
+        ],
+    },
 }
+# Checks that report multiple results (at various severity levels)
+multi_result_checks = ["check_variable_definition"]
 
 
 def test_cc6_basic(load_test_data):
@@ -163,42 +169,72 @@ class TestCC6Checks:
         assert (
             len(checks) == 1
         ), f"Expected 1 check, found {len(checks)}: {', '.join(checks)}"
-        assert len(res["cc6"][0]) == 1, f"Expected 1 check, found {len(res['cc6'][0])}"
-
-        # Check result object
-        check_result = res["cc6"][0][0]
-
-        # Check the score results
-        if dataset in expected_failures and checks[0] in expected_failures[dataset]:
+        if checks[0] in multi_result_checks:
             assert (
-                len(set(check_result.value)) == 2
-            ), f"Inconsistent check values: {check_result.value}"
+                len(res["cc6"][0]) == 2
+            ), f"Expected 2 checks, found {len(res['cc6'][0])}"
         else:
             assert (
-                len(set(check_result.value)) == 1
-            ), f"Inconsistent check values: {check_result.value}"
+                len(res["cc6"][0]) == 1
+            ), f"Expected 1 check, found {len(res['cc6'][0])}"
 
-        # Are there any expected check failures?
-        if dataset in expected_failures and len(expected_failures[dataset].keys()) > 0:
-            # If this specific check failed, was that expected?
-            if checks[0] in expected_failures[dataset]:
-                substrs = expected_failures[dataset][checks[0]]
-                if substrs:
-                    for substr in substrs:
-                        assert any(substr in msg for msg in check_result.msgs), (
-                            "Expected check "
-                            f"'{checks[0]}' to fail with all of \"{', '.join(substrs)}\" but got \"{', '.join(check_result.msgs)}\"."
-                        )
-                else:
-                    assert (
-                        len(check_result.msgs) > 0
-                    ), f"Expected check '{checks[0]}' to fail, but it passed."
-            # Else, assert that no messages were returned (== the check did not fail)
+        # Check result objects
+        severity_encountered = []
+        for check_result in res["cc6"][0]:
+
+            # Get check severity
+            severity = check_result.weight
+            severity_encountered.append(severity)
+
+            # Check the score results
+            if (
+                dataset in expected_failures
+                and checks[0] in expected_failures[dataset]
+                and severity in expected_failures[dataset][checks[0]]
+            ):
+                assert (
+                    len(set(check_result.value)) == 2
+                ), f"Inconsistent check values: {check_result.value}"
             else:
-                assert check_result.msgs == [], (
-                    "Expected no messages for check "
-                    f"'{checks[0]}' but got: {', '.join(check_result.msgs)}"
-                )
+                assert (
+                    len(set(check_result.value)) == 1
+                ), f"Inconsistent check values: {check_result.value}"
+
+            # Are there any expected check failures?
+            if (
+                dataset in expected_failures
+                and len(expected_failures[dataset].keys()) > 0
+            ):
+                # If this specific check failed, was that expected?
+                if (
+                    checks[0] in expected_failures[dataset]
+                    and severity in expected_failures[dataset][checks[0]]
+                ):
+                    substrs = expected_failures[dataset][checks[0]][severity]
+                    if substrs:
+                        for substr in substrs:
+                            assert any(substr in msg for msg in check_result.msgs), (
+                                "Expected check "
+                                f"'{checks[0]}' to fail with all of \"{', '.join(substrs)}\" but got \"{', '.join(check_result.msgs)}\"."
+                            )
+                    else:
+                        assert (
+                            len(check_result.msgs) > 0
+                        ), f"Expected check '{checks[0]}' to fail, but it passed."
+                # Else, assert that no messages were returned (== the check did not fail)
+                else:
+                    assert check_result.msgs == [], (
+                        "Expected no messages for check "
+                        f"'{checks[0]}' but got: {', '.join(check_result.msgs)}"
+                    )
+        # Ensure all expected check severities were encountered
+        if dataset in expected_failures and checks[0] in expected_failures[dataset]:
+            assert all(
+                [
+                    si in severity_encountered
+                    for si in expected_failures[dataset][checks[0]].keys()
+                ]
+            )
 
     @pytest.mark.parametrize(
         "dataset",
