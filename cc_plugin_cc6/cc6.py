@@ -12,6 +12,7 @@ from cc_plugin_cc6 import __version__
 from ._constants import deltdic
 from .base import MIPCVCheck
 from .tables import retrieve
+from .utils import crosses_anti_meridian, crosses_zero_meridian
 
 CORDEX_CMIP6_CMOR_TABLES_URL = "https://raw.githubusercontent.com/WCRP-CORDEX/cordex-cmip6-cmor-tables/main/Tables/"
 
@@ -828,7 +829,11 @@ class CORDEXCMIP6(MIPCVCheck):
         if lon.ndim != 2:
             messages.append("The longitude coordinate should have two dimensions.")
         # The polar domains and generally domains crossing both, 0-meridian and anti-meridian, are exempt from monotony tests
-        elif domain_id.startswith("ARC") or domain_id.startswith("ANT"):
+        elif (
+            domain_id.startswith("ARC")
+            or domain_id.startswith("ANT")
+            or (crosses_anti_meridian(lon) and crosses_zero_meridian(lon))
+        ):
             score += 1
         else:
             increasing_0 = ((lon[1:, :].data - lon[:-1, :].data) > 0).all()

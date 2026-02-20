@@ -2,6 +2,10 @@ import re
 
 import numpy as np
 
+###################################
+# General Utility Functions
+###################################
+
 
 def convert_posix_to_python(posix_regex):
     """
@@ -119,3 +123,58 @@ def sanitize(obj):
     if isinstance(obj, (np.ndarray,)):
         return obj.tolist()
     return obj
+
+
+###################################
+# Coordinate Utility Functions
+###################################
+
+
+def convert_lon_360(lon):
+    """Convert longitude to [0, 360)."""
+    lon = np.asarray(lon)
+    return lon % 360.0
+
+
+def convert_lon_180(lon):
+    """Convert longitude to [-180, 180)."""
+    lon = np.asarray(lon)
+    return ((lon + 180.0) % 360.0) - 180.0
+
+
+def crosses_zero_meridian(lon, intv=5.0):
+    """
+    Check if longitude crosses 0-meridian.
+
+    Args:
+        lon (numpy.ndarray): Array of longitudes.
+        intv (float, optional): Requiring longitude in interval [-intv, 0] and [0,intv]
+                                to be classified as crossing 0-meridian. Default is 5.
+
+    Returns:
+        bool: True if longitude crosses 0-meridian.
+    """
+    lon180 = convert_lon_180(lon)
+    return bool(
+        np.any((lon180 > -intv) & (lon180 < 0))
+        and np.any((lon180 > 0) & (lon180 < intv))
+    )
+
+
+def crosses_anti_meridian(lon, intv=5.0):
+    """
+    Check if longitude crosses anti-meridian.
+
+    Args:
+        lon (numpy.ndarray): Array of longitudes.
+        intv (float, optional): Requiring longitude in interval [-intv, 0] and [0,intv]
+                                to be classified as crossing 0-meridian. Default is 5.
+
+    Returns:
+        bool: True if longitude crosses anti-meridian.
+    """
+    lon360 = convert_lon_360(lon)
+    return bool(
+        np.any((lon360 > 180 - intv) & (lon360 < 180))
+        and np.any((lon360 > 180) & (lon360 < 180 + intv))
+    )
