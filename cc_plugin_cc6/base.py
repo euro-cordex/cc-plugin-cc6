@@ -1031,18 +1031,25 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
                     messages.append(
                         f"Projection y coordinate variable '{y}' should be named '{self.CTgrids['axis_entry']['y_deg']['out_name']}'."
                     )
-                messages.extend(
-                    self._verify_attrs(y, self.CTgrids["axis_entry"]["y_deg"])
-                )
+                y_deg_msgs = self._verify_attrs(y, self.CTgrids["axis_entry"]["y_deg"])
+                y_msgs = self._verify_attrs(y, self.CTgrids["axis_entry"]["y"])
+                if len(y_deg_msgs) < len(y_msgs):
+                    messages.extend(y_deg_msgs)
+                else:
+                    messages.extend(y_msgs)
             if "projection_x_coordinate" in self.xrds.cf.standard_names:
                 x = self.xrds.cf.standard_names["projection_x_coordinate"][0]
                 if x != self.CTgrids["axis_entry"]["x_deg"]["out_name"]:
                     messages.append(
                         f"Projection x coordinate variable '{x}' should be named '{self.CTgrids['axis_entry']['x_deg']['out_name']}'."
                     )
-                messages.extend(
-                    self._verify_attrs(x, self.CTgrids["axis_entry"]["x_deg"])
-                )
+
+                x_deg_msgs = self._verify_attrs(x, self.CTgrids["axis_entry"]["x_deg"])
+                x_msgs = self._verify_attrs(x, self.CTgrids["axis_entry"]["x"])
+                if len(x_deg_msgs) < len(x_msgs):
+                    messages.extend(x_deg_msgs)
+                else:
+                    messages.extend(x_msgs)
 
         if len(messages) == 0:
             score += 1
