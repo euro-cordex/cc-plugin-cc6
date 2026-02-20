@@ -1122,6 +1122,7 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
         score = 0
         out_of = 1
         messages = []
+        low_severity_messages = []
 
         # Only check if requested variable is identified
         if len(self.varname) == 0:
@@ -1371,9 +1372,16 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
             vattrCT = self._get_var_attr(vattr, False)
             if vattrCT:
                 if vattr == "comment":
+                    # Low severity
                     if vattrCT not in attrs.get("comment", ""):
-                        messages.append(
+                        low_severity_messages.append(
                             f"The variable attribute '{var}:comment' needs to include the specified comment from the CMOR table."
+                        )
+                elif vattr == "long_name":
+                    # Low severity
+                    if vattrCT != attrs.get(vattr, ""):
+                        low_severity_messages.append(
+                            f"The variable attribute '{var}:{vattr} = '{attrs.get(vattr, 'unset')}' is not equivalent to the value specified in the CMOR table ('{vattrCT}')."
                         )
                 elif vattr == "type":
                     reqdtype = self.dtypesdict.get(vattrCT, False)
@@ -1398,6 +1406,17 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
                         )
         if len(messages) == 0:
             score += 1
+
+        if len(low_severity_messages) > 0:
+            high_level_result = self.make_result(level, score, out_of, desc, messages)
+            low_level_result = self.make_result(
+                BaseCheck.LOW,
+                0,
+                1,
+                desc[:-1] + ", informational - no action required)",
+                low_severity_messages,
+            )
+            return [high_level_result, low_level_result]
 
         return self.make_result(level, score, out_of, desc, messages)
 
