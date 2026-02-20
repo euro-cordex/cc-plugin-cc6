@@ -903,11 +903,19 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
         for entry in self.CTformulas["formula_entry"].keys():
             cvars.append(self.CTformulas["formula_entry"][entry]["out_name"])
         cvars = set(cvars)
-        # Add grid_mapping
+        # Add grid_mapping and quantization
         if len(self.varname) > 0:
             crs = getattr(ds.variables[self.varname[0]], "grid_mapping", False)
             if crs:
                 cvars |= {crs}
+            quant = (
+                ds.variables[self.varname[0]].getncattr("quantization")
+                if "quantization" in ds.variables[self.varname[0]].ncattrs()
+                else False
+            )
+            if quant:
+                cvars |= {quant}
+
         # Identify unknown variables / coordinates
         unknown = []
         for var in ds.variables.keys():
