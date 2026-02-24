@@ -2,6 +2,10 @@ import re
 
 import numpy as np
 
+###################################
+# General Utility Functions
+###################################
+
 
 def convert_posix_to_python(posix_regex):
     """
@@ -18,6 +22,13 @@ def convert_posix_to_python(posix_regex):
     """
     if not isinstance(posix_regex, str):
         raise ValueError("Input must be a string")
+
+    # [a,b] -> [a b]
+    posix_regex = re.sub(
+        r"(?<!\\)\[(.*?)(?<!\\)\]",
+        lambda m: "[" + m.group(1).replace(",", " ") + "]",
+        posix_regex,
+    )
 
     # Dictionary of POSIX to Python character class conversions
     posix_to_python_classes = {
@@ -40,6 +51,20 @@ def convert_posix_to_python(posix_regex):
     # Replace POSIX quantifiers with Python equivalents
     posix_regex = posix_regex.replace(r"\{", "{").replace(r"\}", "}")
 
+    # Deal with groups
+    # Temporarily mark existing escaped parentheses that should become groups, e.g., \(
+    posix_regex = re.sub(r"\\\(", "__GROUP_LEFTPARENTHESIS__", posix_regex)
+    posix_regex = re.sub(r"\\\)", "__GROUP_RIGHTPARENTHESIS__", posix_regex)
+    # Escape all remaining unescaped parentheses (-> literal parentheses)
+    posix_regex = re.sub(r"(?<!\\)\(", r"\(", posix_regex)
+    posix_regex = re.sub(r"(?<!\\)\)", r"\)", posix_regex)
+    # Restore the placeholders as unescaped parentheses (grouping)
+    posix_regex = posix_regex.replace("__GROUP_LEFTPARENTHESIS__", "(")
+    posix_regex = posix_regex.replace("__GROUP_RIGHTPARENTHESIS__", ")")
+
+    # Replace "{1,}" with "+" to matchone or more repetitions
+    posix_regex = re.sub(r"\{1,\}", "+", posix_regex)
+
     return posix_regex
 
 
@@ -54,13 +79,21 @@ def match_pattern_or_string(pattern, target):
     Returns:
         bool: True if the target matches the regex pattern or is equal to the string.
     """
-    return bool(
-        re.fullmatch(convert_posix_to_python(pattern), target, flags=re.ASCII)
-    ) or (
-        pattern == target
-        and convert_posix_to_python(target) == target
-        and ".*" not in target
-    )
+    try:
+        return bool(
+            re.fullmatch(convert_posix_to_python(pattern), target, flags=re.ASCII)
+        ) or (
+            pattern == target
+            and convert_posix_to_python(target) == target
+            and ".*" not in target
+        )
+    except re.error:
+        # Invalid regex treat pattern as literal string
+        return (
+            pattern == target
+            and convert_posix_to_python(target) == target
+            and ".*" not in target
+        )
 
 
 def to_str(val):
@@ -90,3 +123,58 @@ def sanitize(obj):
     if isinstance(obj, (np.ndarray,)):
         return obj.tolist()
     return obj
+
+
+###################################
+# Coordinate Utility Functions
+###################################
+
+
+def convert_lon_360(lon):
+    """Convert longitude to [0, 360)."""
+    lon = np.asarray(lon)
+    return lon % 360.0
+
+
+def convert_lon_180(lon):
+    """Convert longitude to [-180, 180)."""
+    lon = np.asarray(lon)
+    return ((lon + 180.0) % 360.0) - 180.0
+
+
+def crosses_zero_meridian(lon, intv=5.0):
+    """
+    Check if longitude crosses 0-meridian.
+
+    Args:
+        lon (numpy.ndarray): Array of longitudes.
+        intv (float, optional): Requiring longitude in interval [-intv, 0] and [0,intv]
+                                to be classified as crossing 0-meridian. Default is 5.
+
+    Returns:
+        bool: True if longitude crosses 0-meridian.
+    """
+    lon180 = convert_lon_180(lon)
+    return bool(
+        np.any((lon180 > -intv) & (lon180 < 0))
+        and np.any((lon180 > 0) & (lon180 < intv))
+    )
+
+
+def crosses_anti_meridian(lon, intv=5.0):
+    """
+    Check if longitude crosses anti-meridian.
+
+    Args:
+        lon (numpy.ndarray): Array of longitudes.
+        intv (float, optional): Requiring longitude in interval [-intv, 0] and [0,intv]
+                                to be classified as crossing 0-meridian. Default is 5.
+
+    Returns:
+        bool: True if longitude crosses anti-meridian.
+    """
+    lon360 = convert_lon_360(lon)
+    return bool(
+        np.any((lon360 > 180 - intv) & (lon360 < 180))
+        and np.any((lon360 > 180) & (lon360 < 180 + intv))
+    )

@@ -5,7 +5,6 @@ from datetime import timedelta
 import cf_xarray  # noqa
 import cftime
 import numpy as np
-import xarray as xr
 from compliance_checker.base import BaseCheck
 
 from cc_plugin_cc6 import __version__
@@ -13,6 +12,7 @@ from cc_plugin_cc6 import __version__
 from ._constants import deltdic
 from .base import MIPCVCheck
 from .tables import retrieve
+from .utils import crosses_anti_meridian, crosses_zero_meridian
 
 CORDEX_CMIP6_CMOR_TABLES_URL = "https://raw.githubusercontent.com/WCRP-CORDEX/cordex-cmip6-cmor-tables/main/Tables/"
 
@@ -820,9 +820,21 @@ class CORDEXCMIP6(MIPCVCheck):
         else:
             return self.make_result(level, out_of, out_of, desc, messages)
 
+        # Get domain_id from global attributes
+        domain_id = self._get_attr("domain_id", default="")
+        if not isinstance(domain_id, str):
+            domain_id = ""
+
         # Check if longitude coordinates are strictly monotonically increasing
         if lon.ndim != 2:
             messages.append("The longitude coordinate should have two dimensions.")
+        # The polar domains and generally domains crossing both, 0-meridian and anti-meridian, are exempt from monotony tests
+        elif (
+            domain_id.startswith("ARC")
+            or domain_id.startswith("ANT")
+            or (crosses_anti_meridian(lon) and crosses_zero_meridian(lon))
+        ):
+            score += 1
         else:
             increasing_0 = ((lon[1:, :].data - lon[:-1, :].data) > 0).all()
             increasing_1 = ((lon[:, 1:].data - lon[:, :-1].data) > 0).all()
@@ -859,13 +871,13 @@ class CORDEXCMIP6(MIPCVCheck):
             )
 
         # Check if longitude coordinates have absolute values as small as possible
-        abs = (lon > 180).any() and (xr.where(lon >= 180, lon - 360, lon) >= -180).all()
-        if not abs:
-            score += 1
-        else:
+        # If values are monotonic increasing, only the case 180 <= lon [< 360] is problematic
+        if lon.min() >= 180:
             messages.append(
-                "Longitude values are required to take the smalles absolute value in the range [-180, 360]."
+                "Longitude values are required to take the smallest absolute value in the range [-180, 360]."
             )
+        else:
+            score += 1
 
         return self.make_result(level, score, out_of, desc, messages)
 
