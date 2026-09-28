@@ -105,8 +105,8 @@ def test_cc6_basic(load_test_data):
     ds_fx = cs.load_dataset(ifile_fx)
     res = cs.run_all(ds, ["cc6"], skip_checks=[])
     res_fx = cs.run_all(ds_fx, ["cc6"], skip_checks=[])
-    print(res)  # noqa
-    print(res_fx)  # noqa
+    print(res)
+    print(res_fx)
 
 
 def test_cc6_time_checks_only(load_test_data, tmp_path):
@@ -135,7 +135,7 @@ def test_cc6_time_checks_only(load_test_data, tmp_path):
         ],
         skip_checks=[],
     )
-    print(res)  # noqa
+    print(res)
     assert res["cc6"][1] == {}, f"Errors occurred: {res['cc6'][1]}"
     for check_result in res["cc6"][0]:
         assert (
