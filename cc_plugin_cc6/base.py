@@ -17,9 +17,9 @@ from cc_plugin_cc6 import __version__
 from ._constants import deltdic
 from .utils import match_pattern_or_string, sanitize, to_str
 
-get_tseconds = lambda t: t.total_seconds()  # noqa
+get_tseconds = lambda t: t.total_seconds()
 get_tseconds_vector = np.vectorize(get_tseconds)
-get_abs_tseconds = lambda t: abs(t.total_seconds())  # noqa
+get_abs_tseconds = lambda t: abs(t.total_seconds())
 get_abs_tseconds_vector = np.vectorize(get_abs_tseconds)
 
 
@@ -696,7 +696,7 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
                 elif reqdtype:
                     if not self.xrds[var].dtype == reqdtype:
                         messages.append(
-                            f"The variable '{var}' has to be of type '{attrsCT['type']}' ({str(reqdtype)})."
+                            f"The variable '{var}' has to be of type '{attrsCT['type']}' ({reqdtype!s})."
                         )
                     else:
                         raise ValueError(
@@ -1393,7 +1393,7 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
                     elif reqdtype:
                         if not self.xrds[var].dtype == reqdtype:
                             messages.append(
-                                f"The variable '{var}' has to be of type '{vattrCT}' ({str(reqdtype)})."
+                                f"The variable '{var}' has to be of type '{vattrCT}' ({reqdtype!s})."
                             )
                     else:
                         raise ValueError(
@@ -1614,12 +1614,12 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
             tg = tb.time.where(tf > 0, drop=True)
             th = tb.where(tf > 0, drop=True)
             tindex = xr.DataArray(
-                data=range(0, len(self.time)),
+                data=range(len(self.time)),
                 dims=["time"],
                 coords=dict(time=self.time),
             )
             tindex_f = tindex.where(tf > 0, drop=True)
-            for tstep in range(0, th.size):
+            for tstep in range(th.size):
                 messages.append(
                     f"Discontinuity in time axis (frequency: '{self.frequency}') at index '{tindex_f.isel(time=tstep).item()}'"
                     f" ('{cftime.num2date(tg.isel(time=tstep).item(), calendar=self.calendar, units=self.timeunits)}'):"
@@ -1753,11 +1753,11 @@ class MIPCVCheck(BaseNCCheck, MIPCVCheckBase):
         ti_t = ti.time.where(ti_lh > 0, drop=True)
         ti_f = ti.where(ti_lh > 0, drop=True)
         tindex = xr.DataArray(
-            data=range(0, len(self.time)), dims=["time"], coords=dict(time=self.time)
+            data=range(len(self.time)), dims=["time"], coords=dict(time=self.time)
         )
         tindex_f = tindex.where(ti_lh > 0, drop=True)
         failure = False
-        for tstep in range(0, ti_f.size):
+        for tstep in range(ti_f.size):
             failure = True
             messages.append(
                 f"Discontinuity in time bounds (frequency: '{self.frequency}') at index '{int(tindex_f.values[tstep])}"
