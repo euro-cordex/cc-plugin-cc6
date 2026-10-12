@@ -132,9 +132,7 @@ class CORDEXCMIP6(MIPCVCheck):
             if self.xrds[c].dtype != np.float64:
                 if len(self.varname) > 0 and c == getattr(
                     ds.variables[self.varname[0]], "grid_mapping", None
-                ):
-                    pass
-                elif (
+                ) or (
                     c
                     in {
                         k: self.xrds.cf.formula_terms.get(k, None)
@@ -889,9 +887,7 @@ class CORDEXCMIP6(MIPCVCheck):
         score = 0
         messages = []
 
-        if "longitude" in self.xrds.cf.bounds and "latitude" in self.xrds.cf.bounds:
-            score += 1
-        elif ("lat_bnds" in self.xrds and "lon_bnds" in self.xrds) or (
+        if "longitude" in self.xrds.cf.bounds and "latitude" in self.xrds.cf.bounds or ("lat_bnds" in self.xrds and "lon_bnds" in self.xrds) or (
             "vertices_lat" in self.xrds and "vertices_lon" in self.xrds
         ):
             score += 1
@@ -909,9 +905,7 @@ class CORDEXCMIP6(MIPCVCheck):
         score = 0
         messages = []
 
-        if "X" in self.xrds.cf.bounds and "Y" in self.xrds.cf.bounds:
-            score += 1
-        elif ("rlat_bnds" in self.xrds and "rlon_bnds" in self.xrds) or (
+        if "X" in self.xrds.cf.bounds and "Y" in self.xrds.cf.bounds or ("rlat_bnds" in self.xrds and "rlon_bnds" in self.xrds) or (
             "x_bnds" in self.xrds and "y_bnds" in self.xrds
         ):
             score += 1
