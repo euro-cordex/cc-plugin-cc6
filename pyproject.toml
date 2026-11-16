@@ -10,14 +10,14 @@ name = "cc-plugin-cc6"
 description = "Compliance Checker CORDEX-CMIP6 plugin"
 readme = "README.md"
 keywords = ["compliance checker", "plugin", "cordex", "cordex-cmip6"]
-license = {file = "LICENSE"}
+license = { file = "LICENSE" }
 authors = [
-  {name = "Martin Schupfner", email = "schupfner@dkrz.de"},
-  {name = "Lars Buntemeyer", email = "lars.buntemeyer@hereon.de"}
+  { name = "Martin Schupfner", email = "schupfner@dkrz.de" },
+  { name = "Lars Buntemeyer", email = "lars.buntemeyer@hereon.de" }
 ]
 maintainers = [
-  {name = "Lars Buntemeyer", email = "lars.buntemeyer@hereon.de"},
-  {name = "Martin Schupfner", email = "schupfner@dkrz.de"}
+  { name = "Lars Buntemeyer", email = "lars.buntemeyer@hereon.de" },
+  { name = "Martin Schupfner", email = "schupfner@dkrz.de" }
 ]
 requires-python = ">=3.10"
 classifiers = [
